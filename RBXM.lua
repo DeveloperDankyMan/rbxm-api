@@ -1,260 +1,258 @@
 --!strict
--- RBXI client for rbxm-api.
+-- RBXM Lua client for the rbxm-api binary bridge.
 --
--- Production API contract:
---   POST /v1/rbxm/encode: RBXI bytes -> RBXM bytes
---   POST /v1/rbxm/decode: RBXM bytes -> RBXI bytes
---
--- HttpService transports the binary payload as a Lua string. Do not base64-encode
--- production requests; the Rust API expects Content-Type application/octet-stream.
+-- POST /v1/rbxm/encode: RBXI packet bytes -> RBXM bytes
+-- POST /v1/rbxm/decode: RBXM bytes -> RBXI packet bytes
 
 local HttpService = game:GetService("HttpService")
 
 local RBXM = {}
-
 RBXM.VERSION = 1
 RBXM.MAGIC = "RBXI"
 
-export type Property = {
-\tvalueType: string,
-\tvalue: any,
-}
-
-export type Instance = {
-\treferent: string,
-\tclassName: string,
-\tname: string,
-\tparent: string?,
-\tproperties: {[string]: Property},
-}
-
-export type RequestOptions = {
-\tbaseUrl: string,
-\ttimeout: number?,
-}
-
-local function appendU8(output: {string}, value: number)
-\ttable.insert(output, string.char(value % 256))
+local function appendU8(output, value)
+    table.insert(output, string.char(value % 256))
 end
 
-local function appendU32(output: {string}, value: number)
-\t-- RBXI integers are unsigned little-endian values.
-\tlocal b1 = value % 256
-\tlocal b2 = math.floor(value / 256) % 256
-\tlocal b3 = math.floor(value / 65536) % 256
-\tlocal b4 = math.floor(value / 16777216) % 256
-\ttable.insert(output, string.char(b1, b2, b3, b4))
+local function appendU32(output, value)
+    assert(value >= 0 and value <= 4294967295, "uint32 out of range")
+    local b1 = value % 256
+    local b2 = math.floor(value / 256) % 256
+    local b3 = math.floor(value / 65536) % 256
+    local b4 = math.floor(value / 16777216) % 256
+    table.insert(output, string.char(b1, b2, b3, b4))
 end
 
-local function appendI32(output: {string}, value: number)
-\tif value < 0 then
-\t\tvalue = value + 4294967296
-\tend
-\tappendU32(output, value)
+local function appendI32(output, value)
+    assert(value % 1 == 0 and value >= -2147483648 and value <= 2147483647, "Int32 out of range")
+    appendU32(output, value < 0 and value + 4294967296 or value)
 end
 
-local function appendU64(output: {string}, value: number)
-\t-- Roblox numbers cannot exactly represent every u64. Int64 properties should
-\t-- therefore stay within the safe integer range on the Lua side.
-\tif value < 0 then
-\t\tvalue = value + 18446744073709551616
-\tend
-\tfor _ = 1, 8 do
-\t\tlocal byte = value % 256
-\t\tappendU8(output, byte)
-\t\tvalue = math.floor(value / 256)
-\tend
+local function appendI64(output, value)
+    assert(value % 1 == 0, "Int64 must be an integer")
+    local negative = value < 0
+    if negative then
+        value = value + 18446744073709551616
+    end
+    for _ = 1, 8 do
+        appendU8(output, value % 256)
+        value = math.floor(value / 256)
+    end
 end
 
-local function appendF32(output: {string}, value: number)
-\tlocal packed = string.pack("<f", value)
-\ttable.insert(output, packed)
+local function appendF32(output, value)
+    table.insert(output, string.pack("<f", value))
 end
 
-local function appendF64(output: {string}, value: number)
-\ttable.insert(output, string.pack("<d", value))
+local function appendF64(output, value)
+    table.insert(output, string.pack("<d", value))
 end
 
-local function appendString(output: {string}, value: string)
-\tassert(#value <= 4294967295, "RBXI string is too long")
-\tappendU32(output, #value)
-\ttable.insert(output, value)
+local function appendString(output, value)
+    assert(type(value) == "string", "RBXI string expected")
+    assert(#value <= 1048576, "RBXI string is too long")
+    appendU32(output, #value)
+    table.insert(output, value)
 end
 
-local function readU8(data: string, position: number): (number, number)
-\tassert(position <= #data, "unexpected end of RBXI packet")
-\treturn string.byte(data, position), position + 1
+local function readU8(data, position)
+    assert(position <= #data, "unexpected end of RBXI packet")
+    return string.byte(data, position), position + 1
 end
 
-local function readU32(data: string, position: number): (number, number)
-\tassert(position + 3 <= #data, "unexpected end of RBXI packet")
-\tlocal a, b, c, d = string.byte(data, position, position + 3)
-\treturn a + b * 256 + c * 65536 + d * 16777216, position + 4
+local function readU32(data, position)
+    assert(position + 3 <= #data, "unexpected end of RBXI packet")
+    local a, b, c, d = string.byte(data, position, position + 3)
+    return a + b * 256 + c * 65536 + d * 16777216, position + 4
 end
 
-local function readString(data: string, position: number): (string, number)
-\tlocal length
-\tlength, position = readU32(data, position)
-\tassert(length <= 1048576, "RBXI string is too long")
-\tassert(position + length - 1 <= #data, "unexpected end of RBXI packet")
-\treturn string.sub(data, position, position + length - 1), position + length
+local function readString(data, position)
+    local length
+    length, position = readU32(data, position)
+    assert(length <= 1048576, "RBXI string is too long")
+    assert(position + length - 1 <= #data, "unexpected end of RBXI packet")
+    return string.sub(data, position, position + length - 1), position + length
 end
 
-local function appendProperty(output: {string}, property: Property)
-\tlocal kind = property.valueType
-\tlocal value = property.value
-\tappendString(output, kind)
+local function encodeProperty(output, property)
+    assert(type(property) == "table", "property record expected")
+    local kind = property.valueType
+    local value = property.value
+    assert(type(kind) == "string", "property valueType is required")
+    appendString(output, kind)
 
-\tif kind == "String" or kind == "Ref" then
-\t\tassert(type(value) == "string", kind .. " property requires a string")
-\t\tappendString(output, value)
-\telseif kind == "Bool" then
-\t\tassert(type(value) == "boolean", "Bool property requires a boolean")
-\t\tappendU8(output, if value then 1 else 0)
-\telseif kind == "Int32" then
-\t\tassert(type(value) == "number", "Int32 property requires a number")
-\t\tappendI32(output, value)
-\telseif kind == "Int64" then
-\t\tassert(type(value) == "number", "Int64 property requires a number")
-\t\tappendU64(output, value)
-\telseif kind == "Float32" then
-\t\tassert(type(value) == "number", "Float32 property requires a number")
-\t\tappendF32(output, value)
-\telseif kind == "Float64" then
-\t\tassert(type(value) == "number", "Float64 property requires a number")
-\t\tappendF64(output, value)
-\telseif kind == "Vector2" or kind == "Vector3" or kind == "Color3" then
-\t\tassert(type(value) == "table", kind .. " property requires an array")
-\t\tlocal count = if kind == "Vector2" then 2 else 3
-\t\tassert(#value == count, kind .. " property has the wrong component count")
-\t\tfor index = 1, count do
-\t\t\tassert(type(value[index]) == "number", kind .. " components must be numbers")
-\t\t\tappendF32(output, value[index])
-\t\tend
-\telse
-\t\terror("unsupported RBXI property type: " .. kind)
-\tend
+    if kind == "String" or kind == "Ref" then
+        assert(type(value) == "string", kind .. " property requires a string")
+        appendString(output, value)
+    elseif kind == "Bool" then
+        assert(type(value) == "boolean", "Bool property requires a boolean")
+        appendU8(output, value and 1 or 0)
+    elseif kind == "Int32" then
+        assert(type(value) == "number", "Int32 property requires a number")
+        appendI32(output, value)
+    elseif kind == "Int64" then
+        assert(type(value) == "number", "Int64 property requires a number")
+        appendI64(output, value)
+    elseif kind == "Float32" then
+        assert(type(value) == "number", "Float32 property requires a number")
+        appendF32(output, value)
+    elseif kind == "Float64" then
+        assert(type(value) == "number", "Float64 property requires a number")
+        appendF64(output, value)
+    elseif kind == "Vector2" or kind == "Vector3" or kind == "Color3" then
+        assert(type(value) == "table", kind .. " property requires an array")
+        local count = kind == "Vector2" and 2 or 3
+        assert(#value == count, kind .. " requires " .. count .. " components")
+        for index = 1, count do
+            assert(type(value[index]) == "number", kind .. " components must be numbers")
+            appendF32(output, value[index])
+        end
+    else
+        error("unsupported RBXI property type: " .. kind)
+    end
 end
 
-function RBXM.encodePacket(instances: {Instance}): string
-\tassert(#instances <= 100000, "too many RBXI instances")
-\tlocal output = {RBXM.MAGIC}
-\tappendU8(output, RBXM.VERSION)
-\tappendU32(output, #instances)
+function RBXM.encodePacket(instances)
+    assert(type(instances) == "table", "instances must be a table")
+    assert(#instances <= 100000, "too many RBXI instances")
 
-\tfor _, instance in ipairs(instances) do
-\t\tassert(type(instance.referent) == "string", "instance referent is required")
-\t\tassert(type(instance.className) == "string", "instance className is required")
-\t\tassert(type(instance.name) == "string", "instance name is required")
-\t\tappendString(output, instance.referent)
-\t\tappendString(output, instance.parent or "")
-\t\tappendString(output, instance.className)
-\t\tappendString(output, instance.name)
+    local output = { RBXM.MAGIC }
+    appendU8(output, RBXM.VERSION)
+    appendU32(output, #instances)
 
-\t\tlocal properties = instance.properties or {}
-\t\tlocal propertyNames = {}
-\t\tfor propertyName in pairs(properties) do
-\t\t\ttable.insert(propertyNames, propertyName)
-\t\tend
-\t\ttable.sort(propertyNames)
-\t\tappendU32(output, #propertyNames)
-\t\tfor _, propertyName in ipairs(propertyNames) do
-\t\t\tappendString(output, propertyName)
-\t\t\tappendProperty(output, properties[propertyName])
-\t\tend
-\tend
+    for _, instance in ipairs(instances) do
+        assert(type(instance) == "table", "instance record expected")
+        assert(type(instance.referent) == "string" and instance.referent ~= "", "instance referent is required")
+        assert(type(instance.className) == "string" and instance.className ~= "", "instance className is required")
+        assert(type(instance.name) == "string", "instance name is required")
 
-\treturn table.concat(output)
+        appendString(output, instance.referent)
+        appendString(output, instance.parent or "")
+        appendString(output, instance.className)
+        appendString(output, instance.name)
+
+        local properties = instance.properties or {}
+        local propertyNames = {}
+        for propertyName in pairs(properties) do
+            assert(type(propertyName) == "string", "property names must be strings")
+            table.insert(propertyNames, propertyName)
+        end
+        table.sort(propertyNames)
+        assert(#propertyNames <= 100000, "too many properties")
+        appendU32(output, #propertyNames)
+
+        for _, propertyName in ipairs(propertyNames) do
+            appendString(output, propertyName)
+            encodeProperty(output, properties[propertyName])
+        end
+    end
+
+    return table.concat(output)
 end
 
-function RBXM.encode(instances: {Instance}, options: RequestOptions): string
-\tlocal packet = RBXM.encodePacket(instances)
-\tlocal response = HttpService:RequestAsync({
-\t\tUrl = options.baseUrl .. "/v1/rbxm/encode",
-\t\tMethod = "POST",
-\t\tHeaders = { ["Content-Type"] = "application/octet-stream" },
-\t\tBody = packet,
-\t})
-\tassert(response.Success, "RBXM encode failed: " .. tostring(response.StatusCode) .. " " .. response.StatusMessage)
-\treturn response.Body
+local function decodeProperty(data, position, kind)
+    if kind == "String" or kind == "Ref" then
+        return readString(data, position)
+    elseif kind == "Bool" then
+        local byte
+        byte, position = readU8(data, position)
+        assert(byte <= 1, "invalid Bool value")
+        return byte == 1, position
+    elseif kind == "Int32" then
+        local raw
+        raw, position = readU32(data, position)
+        return raw >= 2147483648 and raw - 4294967296 or raw, position
+    elseif kind == "Int64" then
+        local value
+        value, position = string.unpack("<i8", data, position)
+        return value, position
+    elseif kind == "Float32" then
+        local value
+        value, position = string.unpack("<f", data, position)
+        return value, position
+    elseif kind == "Float64" then
+        local value
+        value, position = string.unpack("<d", data, position)
+        return value, position
+    elseif kind == "Vector2" or kind == "Vector3" or kind == "Color3" then
+        local count = kind == "Vector2" and 2 or 3
+        local value = {}
+        for index = 1, count do
+            value[index], position = string.unpack("<f", data, position)
+        end
+        return value, position
+    else
+        error("unsupported RBXI property type: " .. kind)
+    end
 end
 
-function RBXM.decodePacket(data: string): {Instance}
-\tassert(string.sub(data, 1, 4) == RBXM.MAGIC, "invalid RBXI magic")
-\tassert(string.byte(data, 5) == RBXM.VERSION, "unsupported RBXI version")
-\tlocal position = 6
-\tlocal count
-\tcount, position = readU32(data, position)
-\tassert(count <= 100000, "too many RBXI instances")
-\tlocal instances = {}
+function RBXM.decodePacket(data)
+    assert(type(data) == "string", "RBXI packet must be a string")
+    assert(string.sub(data, 1, 4) == RBXM.MAGIC, "invalid RBXI magic")
+    assert(string.byte(data, 5) == RBXM.VERSION, "unsupported RBXI version")
 
-\tfor _ = 1, count do
-\t\tlocal referent, parent, className, name
-\t\treferent, position = readString(data, position)
-\t\tparent, position = readString(data, position)
-\t\tclassName, position = readString(data, position)
-\t\tname, position = readString(data, position)
-\t\tlocal propertyCount
-\t\tpropertyCount, position = readU32(data, position)
-\t\tassert(propertyCount <= 100000, "too many RBXI properties")
-\t\tlocal properties = {}
+    local position = 6
+    local count
+    count, position = readU32(data, position)
+    assert(count <= 100000, "too many RBXI instances")
+    local instances = {}
 
-\t\tfor _ = 1, propertyCount do
-\t\t\tlocal propertyName, kind
-\t\t\tpropertyName, position = readString(data, position)
-\t\t\tkind, position = readString(data, position)
-\t\t\tlocal value
-\t\t\tif kind == "String" or kind == "Ref" then
-\t\t\t\tvalue, position = readString(data, position)
-\t\t\telseif kind == "Bool" then
-\t\t\t\tlocal byte
-\t\t\t\tbyte, position = readU8(data, position)
-\t\t\t\tassert(byte <= 1, "invalid Bool value")
-\t\t\t\tvalue = byte == 1
-\t\t\telseif kind == "Int32" then
-\t\t\t\tlocal raw
-\t\t\t\traw, position = readU32(data, position)
-\t\t\t\tvalue = if raw >= 2147483648 then raw - 4294967296 else raw
-\t\t\telseif kind == "Int64" then
-\t\t\t\t-- Luau's string.unpack handles little-endian signed 64-bit values.
-\t\t\t\tvalue, position = string.unpack("<i8", data, position)
-\t\t\telseif kind == "Float32" then
-\t\t\t\tvalue, position = string.unpack("<f", data, position)
-\t\t\telseif kind == "Float64" then
-\t\t\t\tvalue, position = string.unpack("<d", data, position)
-\t\t\telseif kind == "Vector2" or kind == "Vector3" or kind == "Color3" then
-\t\t\t\tlocal componentCount = if kind == "Vector2" then 2 else 3
-\t\t\t\tvalue = {}
-\t\t\t\tfor index = 1, componentCount do
-\t\t\t\t\tvalue[index], position = string.unpack("<f", data, position)
-\t\t\t\tend
-\t\t\telse
-\t\t\t\terror("unsupported RBXI property type: " .. kind)
-\t\t\tend
-\t\t\tproperties[propertyName] = { valueType = kind, value = value }
-\t\tend
-\n\t\ttable.insert(instances, {
-\t\t\treferent = referent,
-\t\t\tparent = if parent == "" then nil else parent,
-\t\t\tclassName = className,
-\t\t\tname = name,
-\t\t\tproperties = properties,
-\t\t})
-\tend
+    for _ = 1, count do
+        local referent, parent, className, name
+        referent, position = readString(data, position)
+        parent, position = readString(data, position)
+        className, position = readString(data, position)
+        name, position = readString(data, position)
 
-\tassert(position == #data + 1, "trailing bytes after RBXI packet")
-\treturn instances
+        local propertyCount
+        propertyCount, position = readU32(data, position)
+        assert(propertyCount <= 100000, "too many RBXI properties")
+        local properties = {}
+
+        for _ = 1, propertyCount do
+            local propertyName, kind, value
+            propertyName, position = readString(data, position)
+            kind, position = readString(data, position)
+            value, position = decodeProperty(data, position, kind)
+            properties[propertyName] = { valueType = kind, value = value }
+        end
+
+        table.insert(instances, {
+            referent = referent,
+            parent = parent == "" and nil or parent,
+            className = className,
+            name = name,
+            properties = properties,
+        })
+    end
+
+    assert(position == #data + 1, "trailing bytes after RBXI packet")
+    return instances
 end
 
-function RBXM.decode(data: string, options: RequestOptions): {Instance}
-\tlocal response = HttpService:RequestAsync({
-\t\tUrl = options.baseUrl .. "/v1/rbxm/decode",
-\t\tMethod = "POST",
-\t\tHeaders = { ["Content-Type"] = "application/octet-stream" },
-\t\tBody = data,
-\t})
-\tassert(response.Success, "RBXM decode failed: " .. tostring(response.StatusCode) .. " " .. response.StatusMessage)
-\treturn RBXM.decodePacket(response.Body)
+function RBXM.encode(instances, options)
+    assert(type(options) == "table" and type(options.baseUrl) == "string", "options.baseUrl is required")
+    local response = HttpService:RequestAsync({
+        Url = options.baseUrl .. "/v1/rbxm/encode",
+        Method = "POST",
+        Headers = { ["Content-Type"] = "application/octet-stream" },
+        Body = RBXM.encodePacket(instances),
+    })
+    assert(response.Success, "RBXM encode failed: " .. tostring(response.StatusCode) .. " " .. tostring(response.StatusMessage))
+    return response.Body
+end
+
+function RBXM.decode(data, options)
+    assert(type(data) == "string", "RBXM bytes must be a string")
+    assert(type(options) == "table" and type(options.baseUrl) == "string", "options.baseUrl is required")
+    local response = HttpService:RequestAsync({
+        Url = options.baseUrl .. "/v1/rbxm/decode",
+        Method = "POST",
+        Headers = { ["Content-Type"] = "application/octet-stream" },
+        Body = data,
+    })
+    assert(response.Success, "RBXM decode failed: " .. tostring(response.StatusCode) .. " " .. tostring(response.StatusMessage))
+    return RBXM.decodePacket(response.Body)
 end
 
 return RBXM
