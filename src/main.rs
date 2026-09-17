@@ -1,146 +1,37 @@
+mod compat;
 mod models;
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    routing::{get, post},
-    Json, Router,
-};
-use serde_json::json;
-use std::sync::Arc;
+use axum::{extract::State, http::StatusCode, routing::{get, post}, Json, Router};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use tokio::net::TcpListener;
+use crate::models::{DecodeRequest, DecodeResponse, EncodeRequest, EncodeResponse, ErrorResponse, HealthResponse, ValidateRequest, ValidateResponse};
 
-use crate::models::{
-    EncodeRequest, EncodeResponse, ErrorResponse, HealthResponse, ValidateRequest, ValidateResponse,
-};
+#[derive(Clone, Default)] struct AppState;
+type ApiResult<T> = Result<Json<T>, (StatusCode, Json<ErrorResponse>)>;
+fn error(status: StatusCode, code: &str, message: impl Into<String>) -> (StatusCode, Json<ErrorResponse>) { (status, Json(ErrorResponse { code: code.into(), message: message.into() })) }
+fn ensure_format(format: &str) -> Result<(), (StatusCode, Json<ErrorResponse>)> { if matches!(format, "rbxm" | "rbxl") { Ok(()) } else { Err(error(StatusCode::BAD_REQUEST, "invalid_format", "format must be rbxm or rbxl")) } }
 
-#[derive(Clone, Default)]
-struct AppState {}
+async fn health() -> Json<HealthResponse> { Json(HealthResponse { ok: true, service: "rbxm-api".into(), version: env!("CARGO_PKG_VERSION").into() }) }
 
-async fn health() -> Json<HealthResponse> {
-    Json(HealthResponse {
-        ok: true,
-        service: "rbxm-api".to_string(),
-        version: env!("CARGO_PKG_VERSION").to_string(),
-    })
+async fn encode_rbxm(State(_): State<AppState>, Json(request): Json<EncodeRequest>) -> ApiResult<EncodeResponse> {
+    ensure_format(&request.format)?;
+    let bytes = compat::encode(&request).map_err(|e| error(StatusCode::BAD_REQUEST, "encode_error", e.to_string()))?;
+    Ok(Json(EncodeResponse { format: request.format, encoding: "base64".into(), data: STANDARD.encode(bytes), note: "Encoded by rbx_binary/rbx_dom_weak public compatibility engine".into() }))
 }
 
-async fn encode_rbxm(
-    State(_state): State<AppState>,
-    Json(payload): Json<EncodeRequest>,
-) -> Result<Json<EncodeResponse>, (StatusCode, Json<ErrorResponse>)> {
-    if payload.format.is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                code: "invalid_format".to_string(),
-                message: "format is required".to_string(),
-            }),
-        ));
-    }
-
-    // This is intentionally a scaffold. The real implementation should be wired
-    // to a public-format RBXM encoder (e.g. a compatibility layer around Rojo's
-    // rbx-dom model or a maintained public format encoder).
-    let payload_bytes = serde_json::to_vec(&payload).map_err(|err| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                code: "serialize_error".to_string(),
-                message: err.to_string(),
-            }),
-        )
-    })?;
-
-    let encoded = base64::encode(payload_bytes);
-
-    Ok(Json(EncodeResponse {
-        format: payload.format.clone(),
-        encoding: "base64".to_string(),
-        data: encoded,
-        note: "public-format compatibility scaffold; replace with actual RBXM encoder implementation".to_string(),
-    }))
+async fn decode_rbxm(State(_): State<AppState>, Json(request): Json<DecodeRequest>) -> ApiResult<DecodeResponse> {
+    ensure_format(&request.format)?;
+    if request.encoding != "base64" { return Err(error(StatusCode::BAD_REQUEST, "invalid_encoding", "encoding must be base64")); }
+    let bytes = STANDARD.decode(request.data).map_err(|e| error(StatusCode::BAD_REQUEST, "invalid_base64", e.to_string()))?;
+    let data = compat::decode(&bytes).map_err(|e| error(StatusCode::BAD_REQUEST, "decode_error", e.to_string()))?;
+    Ok(Json(DecodeResponse { format: request.format, data, note: "Decoded by rbx_binary/rbx_dom_weak public compatibility engine".into() }))
 }
 
-async fn decode_rbxm(
-    State(_state): State<AppState>,
-    Json(payload): Json<models::DecodeRequest>,
-) -> Result<Json<models::DecodeResponse>, (StatusCode, Json<ErrorResponse>)> {
-    if payload.data.trim().is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                code: "empty_payload".to_string(),
-                message: "data is required".to_string(),
-            }),
-        ));
-    }
-
-    let decoded = base64::decode(&payload.data).map_err(|err| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                code: "invalid_base64".to_string(),
-                message: err.to_string(),
-            }),
-        )
-    })?;
-
-    let parsed: serde_json::Value = serde_json::from_slice(&decoded).unwrap_or(json!({
-        "status": "decoded-but-not-parsed",
-        "note": "this scaffold does not yet implement the public RBXM decoder"
-    }));
-
-    Ok(Json(models::DecodeResponse {
-        format: payload.format.clone(),
-        data: parsed,
-        note: "public-format compatibility scaffold; replace with actual RBXM decoder implementation".to_string(),
-    }))
-}
-
-async fn validate_rbxm(
-    State(_state): State<AppState>,
-    Json(payload): Json<ValidateRequest>,
-) -> Result<Json<ValidateResponse>, (StatusCode, Json<ErrorResponse>)> {
-    if payload.data.trim().is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                code: "empty_payload".to_string(),
-                message: "data is required".to_string(),
-            }),
-        ));
-    }
-
-    let ok = payload.format == "rbxm" || payload.format == "rbxmx" || payload.format == "rbxl";
-
-    Ok(Json(ValidateResponse {
-        ok,
-        format: payload.format,
-        issues: if ok {
-            vec![]
-        } else {
-            vec!["unsupported format".to_string()]
-        },
-        note: "public-format validation scaffold; replace with exact chunk validation logic".to_string(),
-    }))
+async fn validate_rbxm(State(_): State<AppState>, Json(request): Json<ValidateRequest>) -> ApiResult<ValidateResponse> {
+    ensure_format(&request.format)?;
+    let bytes = STANDARD.decode(request.data).map_err(|e| error(StatusCode::BAD_REQUEST, "invalid_base64", e.to_string()))?;
+    match compat::validate(&bytes) { Ok(()) => Ok(Json(ValidateResponse { ok: true, format: request.format, issues: vec![], note: "Valid RBXM/RBXL binary document".into() })), Err(e) => Ok(Json(ValidateResponse { ok: false, format: request.format, issues: vec![e.to_string()], note: "Binary parser rejected the document".into() })) }
 }
 
 #[tokio::main]
-async fn main() {
-    tracing_subscriber::fmt::init();
-
-    let app = Router::new()
-        .route("/health", get(health))
-        .route("/v1/rbxm/encode", post(encode_rbxm))
-        .route("/v1/rbxm/decode", post(decode_rbxm))
-        .route("/v1/rbxm/validate", post(validate_rbxm))
-        .with_state(AppState::default());
-
-    let listener = TcpListener::bind("0.0.0.0:3000")
-        .await
-        .expect("failed to bind port 3000");
-
-    tracing::info!("RBXM compatibility API listening on http://0.0.0.0:3000");
-    axum::serve(listener, app).await.expect("server failed");
-}
+async fn main() { tracing_subscriber::fmt::init(); let app = Router::new().route("/health", get(health)).route("/v1/rbxm/encode", post(encode_rbxm)).route("/v1/rbxm/decode", post(decode_rbxm)).route("/v1/rbxm/validate", post(validate_rbxm)).with_state(AppState); let listener = TcpListener::bind("0.0.0.0:3000").await.expect("failed to bind port 3000"); tracing::info!("RBXM API listening on http://0.0.0.0:3000"); axum::serve(listener, app).await.expect("server failed"); }
