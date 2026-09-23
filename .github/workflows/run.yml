@@ -42,7 +42,7 @@ jobs:
 
       - name: Tunnel (about 5h50m), then hand over to the next run
         env:
-          LT_SUBDOMAIN: ${{ vars.LT_SUBDOMAIN }}
+          LT_SUBDOMAIN: ${{ secrets.LT_SUBDOMAIN }}
           GH_TOKEN: ${{ github.token }}
         run: |
           npm install -g localtunnel
