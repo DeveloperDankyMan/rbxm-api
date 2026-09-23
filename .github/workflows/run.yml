@@ -1,0 +1,55 @@
+name: rbxm-api
+
+on:
+  workflow_dispatch:        # manual start, and how the job restarts itself
+  schedule:
+    - cron: "0 */6 * * *"   # backup restart if the self-restart ever fails
+  push:
+    branches: [main]
+
+# Only one server at a time; a new run waits for the old one instead of killing it.
+concurrency:
+  group: rbxm-api
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write            # lets the job start its own next run
+
+jobs:
+  serve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360    # GitHub-hosted jobs are hard-capped at 6 hours
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Start server
+        env:
+          RBXM_API_KEY: ${{ secrets.RBXM_API_KEY }}
+          PORT: "8080"
+        run: |
+          ./target/release/rbxm-api > server.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8080/health && break
+            sleep 1
+          done
+
+      - name: Tunnel (about 5h50m), then hand over to the next run
+        env:
+          LT_SUBDOMAIN: ${{ vars.LT_SUBDOMAIN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          npm install -g localtunnel
+          end=$((SECONDS + 21000))
+          # localtunnel drops now and then, so reconnect until time is up
+          while [ $SECONDS -lt $end ]; do
+            timeout $((end - SECONDS)) lt --port 8080 --subdomain "$LT_SUBDOMAIN" || true
+            sleep 2
+          done
+          gh workflow run rbxm-api.yml --repo "$GITHUB_REPOSITORY"
