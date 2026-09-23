@@ -1,0 +1,17 @@
+[package]
+name = "rbxm-api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rbx_dom_weak = "4"
+rbx_binary = "3"
+rbx_reflection = "7"
+rbx_reflection_database = "3"
+rbx_types = "3"
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+anyhow = "1"
