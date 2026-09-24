@@ -21,9 +21,6 @@ RBXM_API_KEY=some-long-random-string cargo run --release
 |---|---|---|
 | `RBXM_API_KEY` | *(unset = no auth!)* | required in the `x-api-key` header |
 | `PORT` | 8080 | listen port |
-| `MAX_BODY_BYTES` | 8388608 | request body cap |
-| `MAX_INSTANCES` | 50000 | instances per encode/decode |
-| `MAX_DEPTH` | 256 | tree depth cap |
 
 Put it behind a reverse proxy (Caddy / nginx) for HTTPS and **rate limiting** — the server itself
 doesn't rate limit. Roblox allows 500 HttpService requests/min per game server.
