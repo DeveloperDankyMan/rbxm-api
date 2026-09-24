@@ -16,11 +16,8 @@ use axum::{
 use base64::Engine;
 use serde::Deserialize;
 
-use codec::Limits;
-
 struct AppState {
     api_key: Option<String>,
-    limits: Limits,
 }
 
 type Shared = Arc<AppState>;
@@ -33,23 +30,18 @@ fn env_usize(name: &str, default: usize) -> usize {
 async fn main() {
     let state = Arc::new(AppState {
         api_key: std::env::var("RBXM_API_KEY").ok().filter(|k| !k.is_empty()),
-        limits: Limits {
-            max_instances: env_usize("MAX_INSTANCES", 50_000),
-            max_depth: env_usize("MAX_DEPTH", 256),
-        },
     });
     if state.api_key.is_none() {
         eprintln!("WARNING: RBXM_API_KEY is not set — the API is unauthenticated!");
     }
 
-    let max_body = env_usize("MAX_BODY_BYTES", 8 * 1024 * 1024);
     let app = Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/schema/:class", get(schema_route))
         .route("/schemas", get(schemas_route))
         .route("/encode", post(encode_route))
         .route("/decode", post(decode_route))
-        .layer(DefaultBodyLimit::max(max_body))
+        .layer(DefaultBodyLimit::disable())
         .with_state(state);
 
     let port = env_usize("PORT", 8080) as u16;
@@ -140,8 +132,7 @@ async fn encode_route(
     Json(tree): Json<wire::Tree>,
 ) -> Result<Response, ApiError> {
     auth(&state, &headers)?;
-    let st = state.clone();
-    let bytes = tokio::task::spawn_blocking(move || codec::encode(&tree, &st.limits))
+    let bytes = tokio::task::spawn_blocking(move || codec::encode(&tree))
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .map_err(bad_request)?;
@@ -167,8 +158,7 @@ async fn decode_route(
     } else {
         body.to_vec()
     };
-    let st = state.clone();
-    let tree = tokio::task::spawn_blocking(move || codec::decode(&raw, &st.limits))
+    let tree = tokio::task::spawn_blocking(move || codec::decode(&raw))
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .map_err(bad_request)?;
