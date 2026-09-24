@@ -10,11 +10,6 @@ use rbx_types::VariantType;
 use crate::convert::{from_variant, parse_type, to_variant};
 use crate::wire::{InstanceDesc, Tree};
 
-pub struct Limits {
-    pub max_instances: usize,
-    pub max_depth: usize,
-}
-
 /// Finds the data type the reflection database expects for `class.prop`,
 /// searching superclasses. Aliases are followed.
 pub fn expected_type(class: &str, prop: &str) -> Option<VariantType> {
@@ -40,13 +35,10 @@ pub fn expected(class: &str, prop: &str) -> Option<(VariantType, Option<&'static
     }
 }
 
-pub fn encode(tree: &Tree, limits: &Limits) -> Result<Vec<u8>> {
+pub fn encode(tree: &Tree) -> Result<Vec<u8>> {
     let n = tree.instances.len();
     if n == 0 {
         bail!("no instances");
-    }
-    if n > limits.max_instances {
-        bail!("too many instances ({n} > {})", limits.max_instances);
     }
 
     // Pass 1: assign a referent to every id.
@@ -73,11 +65,8 @@ pub fn encode(tree: &Tree, limits: &Limits) -> Result<Vec<u8>> {
     let mut top: Vec<Ref> = Vec::with_capacity(roots.len());
     let mut inserted = 0usize;
 
-    let mut stack: Vec<(usize, Ref, usize)> = roots.iter().rev().map(|&i| (i, dom_root, 1)).collect();
-    while let Some((idx, parent_ref, depth)) = stack.pop() {
-        if depth > limits.max_depth {
-            bail!("tree deeper than {}", limits.max_depth);
-        }
+    let mut stack: Vec<(usize, Ref)> = roots.iter().rev().map(|&i| (i, dom_root)).collect();
+    while let Some((idx, parent_ref)) = stack.pop() {
         let inst = &tree.instances[idx];
         let builder = build_instance(inst, &refs).with_context(|| format!("instance {:?} ({})", inst.id, inst.class))?;
         let my_ref = dom.insert(parent_ref, builder);
@@ -87,7 +76,7 @@ pub fn encode(tree: &Tree, limits: &Limits) -> Result<Vec<u8>> {
         }
         if let Some(kids) = children.get(inst.id.as_str()) {
             for &k in kids.iter().rev() {
-                stack.push((k, my_ref, depth + 1));
+                stack.push((k, my_ref));
             }
         }
     }
@@ -120,23 +109,17 @@ fn build_instance(inst: &InstanceDesc, refs: &HashMap<String, Ref>) -> Result<In
     Ok(b)
 }
 
-pub fn decode(bytes: &[u8], limits: &Limits) -> Result<Tree> {
+pub fn decode(bytes: &[u8]) -> Result<Tree> {
     let dom = rbx_binary::from_reader(bytes).map_err(|e| anyhow!("rbx_binary: {e}"))?;
 
     // Assign ids in depth-first (parent-first) order.
     let mut order: Vec<Ref> = Vec::new();
-    let mut stack: Vec<(Ref, usize)> = dom.root().children().iter().rev().map(|&r| (r, 1)).collect();
-    while let Some((r, depth)) = stack.pop() {
-        if depth > limits.max_depth {
-            bail!("tree deeper than {}", limits.max_depth);
-        }
+    let mut stack: Vec<Ref> = dom.root().children().iter().rev().copied().collect();
+    while let Some(r) = stack.pop() {
         order.push(r);
-        if order.len() > limits.max_instances {
-            bail!("too many instances (> {})", limits.max_instances);
-        }
         let inst = dom.get_by_ref(r).ok_or_else(|| anyhow!("dangling referent"))?;
         for &c in inst.children().iter().rev() {
-            stack.push((c, depth + 1));
+            stack.push(c);
         }
     }
     let ids: HashMap<Ref, String> = order.iter().enumerate().map(|(i, r)| (*r, (i + 1).to_string())).collect();
