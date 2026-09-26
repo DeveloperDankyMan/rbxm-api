@@ -19,7 +19,7 @@ RBXM_API_KEY=some-long-random-string cargo run --release
 
 | env var | default | meaning |
 |---|---|---|
-| `RBXM_API_KEY` | *(unset = no auth!)* | required in the `x-api-key` header |
+| `RBXM_API_KEY` | EpIjUFq2ATCl9/PehIOiYF4Fk0drsl7+TEW5jae2FmQ= | required in the `x-api-key` header |
 | `PORT` | 8080 | listen port |
 
 Put it behind a reverse proxy (Caddy / nginx) for HTTPS and **rate limiting** — the server itself
