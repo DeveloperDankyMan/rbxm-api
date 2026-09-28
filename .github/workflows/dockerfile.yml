@@ -1,0 +1,47 @@
+name: Docker Build & Shared Serveo Tunnel
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-and-tunnel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build Docker Image
+        run: docker build -t my-local-image:latest .
+
+      - name: Run API Container with Environmental Variables
+        run: |
+          docker run -d \
+            --rm \
+            -p 8080:8080 \
+            --name rbxm-api \
+            -e RBXM_API_KEY="${{ secrets.RBXM_API_KEY || vars.RBXM_API_KEY }}" \
+            my-local-image:latest
+
+      - name: Launch Ephemeral Serveo Tunnel
+        run: |
+          ssh-keygen
+          echo "🔗 Connecting to Serveo with custom subdomain rbxm-api..."
+          # Request rbxm-api subdomain. -o ServerAliveInterval=30 keeps the connection from dropping.
+          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -R ${{ github.event.repository.name }}:80:localhost:8080 serveo.net > serveo.log 2>&1 &
+          
+          # Quick pause to let the handshake complete
+          sleep 5
+
+          echo "=========================================================="
+          echo "✨ YOUR TARGET PUBLIC URL IS:"
+          echo "https://rbxm-api.serveousercontent.com"
+          echo "=========================================================="
+          
+          echo "📋 Checking connection logs..."
+          cat serveo.log
+
+      - name: Keep Runner Open for Use
+        run: |
+          echo "⏳ Tunnels are active! Keeping the GitHub runner awake..."
+          sleep 1h
