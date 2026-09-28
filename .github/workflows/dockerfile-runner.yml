@@ -35,32 +35,28 @@ jobs:
           # Wrapping completely in strict string literals using localhost
           curl -I "http://localhost:8080/" || echo "⚠️ Warning: Could not reach port 8080 directly."
 
-      - name: Container Logs (Troubleshooting)
-        if: always()
-        run: docker logs rbxm-api || true
-
-      - name: Create High-Speed Public Link
+      - name: Create Cloudflare Tunnel
         run: |
-          echo "=========================================================="
-          echo "🚀 Starting Pinggy SSH Tunnel..."
-          echo "=========================================================="
+          echo "🚀 Starting Cloudflare Quick Tunnel..."
+          # Download the official cloudflared binary
+          wget hhttps://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          sudo dpkg -i cloudflared-linux-amd64.deb
           
-          # Adding 'b' to the username tells Pinggy to automatically rewrite 
-          # the Host header to 'localhost:8080' so your Rust app accepts it.
-          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -fN \
-            -p 443 \
-            -L 4300:localhost:4300 \
-            -R 0:localhost:8080 \
-            b+free@a.pinggy.io
+          # Start a tunnel pointing to your Docker port and save logs to find the URL
+          cloudflared tunnel --url http://localhost:8080 > cloudflare.log 2>&1 &
+          
+          echo "⏳ Waiting for Cloudflare to generate your secure link..."
+          sleep 8
+          
+          echo "=========================================================="
+          echo "🔗 LIVE CLOUDFLARE URL:"
+          echo "=========================================================="
+          grep -o 'https://[-a-zA-Z0-9]*\.trycloudflare\.com' cloudflare.log | head -n 1 || echo "⚠️ Link extraction failed. Check cloudflare.log below."
+          echo "=========================================================="
 
-          echo "⏳ Waiting for Pinggy to assign your live public URL..."
-          sleep 6
-
-          echo "=========================================================="
-          echo "🔗 LIVE PUBLIC URLS:"
-          echo "=========================================================="
-          curl -s "http://localhost:4300/urls" || echo "⚠️ URL fetching failed."
-          echo "=========================================================="
+      - name: Debug Cloudflare Logs
+        if: always()
+        run: cat cloudflare.log
 
       - name: Keep Runner Open for Use
         run: |
