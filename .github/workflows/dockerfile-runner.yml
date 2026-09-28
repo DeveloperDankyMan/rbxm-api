@@ -18,13 +18,12 @@ jobs:
 
       - name: Run API Container with Environmental Variables
         run: |
-          # Uses the correct GitHub Action expression syntax. 
-          # Note: Changed 'vars' to 'secrets' if this is a private API key.
+          # Leaving name as default or overriding via --name rbxm-api
           docker run -d \
             --rm \
-            -p 127.0.0.1:8080:8080 \
+            -p 8080:8080 \
             --name rbxm-api \
-            -e RBXM_API_KEY="${{ secrets.RBXM_API_KEY }}" \
+            -e RBXM_API_KEY="${{ secrets.RBXM_API_KEY || vars.RBXM_API_KEY }}" \
             my-local-image:latest
 
       - name: Verify Local Application Is Responding
@@ -33,11 +32,10 @@ jobs:
           sleep 5
           docker ps
           
-          # Fixed the truncated local URL mapping
-          curl -I http://127.0.0 || echo "⚠️ Warning: The local container did not return a standard 200/404 HTTP header."
+          # Wrapping completely in strict string literals using localhost
+          curl -I "http://localhost:8080/" || echo "⚠️ Warning: Could not reach port 8080 directly."
 
       - name: Container Logs (Troubleshooting)
-        # This will print your Rust app's console output if it crashed or failed to bind
         if: always()
         run: docker logs rbxm-api || true
 
@@ -47,20 +45,21 @@ jobs:
           echo "🚀 Starting Pinggy SSH Tunnel..."
           echo "=========================================================="
           
+          # Binding directly via localhost rules to dodge string parsers
           ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -fN \
             -p 443 \
-            -L4300:127.0.0.1:4300 \
-            -R0:127.0.0.1:8080 \
+            -L 4300:localhost:4300 \
+            -R 0:localhost:8080 \
             free@a.pinggy.io
 
           echo "⏳ Waiting for Pinggy to assign your live public URL..."
-          sleep 5
+          sleep 6
 
           echo "=========================================================="
           echo "🔗 LIVE PUBLIC URLS:"
           echo "=========================================================="
-          # Fixed the truncated Pinggy debugger URL mapping
-          curl -s http://127.0.0 || echo "⚠️ URL fetching failed."
+          # Quoted layout string query execution
+          curl -s "http://localhost:4300/urls" || echo "⚠️ URL fetching failed."
           echo "=========================================================="
 
       - name: Keep Runner Open for Use
