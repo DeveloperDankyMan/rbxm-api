@@ -1,14 +1,13 @@
-name: Docker Build & Permanent Cloudflare Tunnel
+name: Docker Build & Shared Ngrok Tunnel
 
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: 
+  workflow_dispatch:
 
 jobs:
   build-and-tunnel:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -25,20 +24,37 @@ jobs:
             -e RBXM_API_KEY="${{ secrets.RBXM_API_KEY || vars.RBXM_API_KEY }}" \
             my-local-image:latest
 
-      - name: Launch Permanent Cloudflare Tunnel
+      - name: Launch Ephemeral Ngrok Tunnel
+        env:
+          NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
         run: |
-          echo "🚀 Fetching Cloudflare connector..."
-          curl -LO https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-          sudo dpkg -i cloudflared-linux-amd64.deb
+          echo "🚀 Installing ngrok via official script..."
+          curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc \
+          | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null \
+          && echo "deb https://ngrok-agent.s3.amazonaws.com bookworm main" \
+          | sudo tee /etc/apt/sources.list.d/ngrok.list \
+          && sudo apt update \
+          && sudo apt install ngrok
           
-          echo "🔗 Connecting named tunnel to your subdomain endpoint..."
-          # Securely executes cloudflared in the background using your GitHub secret token
-          cloudflared tunnel --no-autoupdate run --token "${{ secrets.CF_TUNNEL_TOKEN }}" &
+          echo "🔐 Authenticating ngrok agent..."
+          ngrok config add-authtoken "${{ secrets.NGROK_AUTHTOKEN }}"
+          
+          echo "🔗 Connecting temporary tunnel to port 8080..."
+          ngrok http 8080 --url http://${{ github.event.repository.name }}.ngrok-free.app
+          
+          # Allow the agent a brief moment to finish handshaking
+          sleep 5
           
           echo "=========================================================="
-          echo "✨ Cloudflare Named Tunnel Connected!"
-          echo "🔗 Traffic is now routing directly to your custom subdomain."
+          echo "✨ YOUR DYNAMIC API URL IS:"
+          # Pulls the active address right out of ngrok's local runtime log
+          grep -o 'url=https://[^ ]*' ngrok.log | cut -d= -f2 || echo "⚠️ Link extraction delayed. Check logs below."
           echo "=========================================================="
+
+      - name: Output Log Check
+        run: |
+          echo "📋 Displaying connection info..."
+          cat ngrok.log
 
       - name: Keep Runner Open for Use
         run: |
