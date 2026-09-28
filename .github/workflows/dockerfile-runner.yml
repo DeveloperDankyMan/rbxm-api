@@ -1,16 +1,47 @@
-name: Run Dockerfile
+name: Docker Build & Fast Public Tunnel
 
 on:
   push:
     branches: [ "main" ]
+  # Allows you to manually trigger this runner whenever you want from the Actions tab
+  workflow_dispatch: 
 
 jobs:
-  run-container:
+  build-and-tunnel:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
       - name: Build Docker Image
         run: docker build -t my-local-image:latest .
-      - name: Run Docker Container
-        run: docker run --rm my-local-image:latest
+
+      - name: Run API Container in Background
+        # -d spins it in the background, mapping port 8080
+        run: docker run -d --rm -p 8080:8080 --name rbxm-api my-local-image:latest
+
+      - name: Create High-Speed Public Link
+        run: |
+          echo "=========================================================="
+          echo "🚀 Starting Pinggy SSH Tunnel..."
+          echo "🔗 Look below for your live, secure HTTPS public URL!"
+          echo "=========================================================="
+          
+          # 1. Establish the tunnel in the background using SSH (-fN)
+          # Routes Pinggy's public HTTPS edge directly to your local port 8080
+          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -fN -p 443 -R0:localhost:8080 free@a.pinggy.io
+
+          # 2. Give the tunnel 3 seconds to spin up and fetch its assigned URL
+          sleep 3
+
+          # 3. Request the active public URLs directly from the local SSH session
+          # This prints the temporary free HTTPS link cleanly inside your GitHub logs
+          curl -s http://localhost:4321/urls || echo "⚠️ URL fetching failed. Please check live logs above."
+
+      - name: Keep Runner Open for Use
+        run: |
+          echo "⏳ Tunnel is live! Keeping the GitHub runner awake..."
+          # Adjust the sleep time below to control how long you want the link to stay alive
+          # e.g., 30m = 30 minutes, 1h = 1 hour, 2h = 2 hours. Maximum runner limit is 6h.
+          sleep 1h
