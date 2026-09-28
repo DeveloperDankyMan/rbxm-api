@@ -7,7 +7,6 @@ on:
 
 jobs:
   build-and-tunnel:
-  # Added a timeout to prevent the 1h sleep from exhausting runner minutes if abandoned
     timeout-minutes: 70
     runs-on: ubuntu-latest
     steps:
@@ -35,25 +34,27 @@ jobs:
           ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_serveo
           chmod 600 ~/.ssh/id_serveo
           
-          echo "🔗 Connecting to Serveo using the generated ephemeral key..."
+          echo "🔗 Fetching host identity keys..."
           ssh-keyscan -H serveo.net >> ~/.ssh/known_hosts 2>/dev/null
           
-          # Run SSH in background and redirect output properly
+          echo "🔗 Connecting to Serveo..."
+          # Removed ExitOnForwardFailure so it falls back gracefully instead of crashing
           ssh -i ~/.ssh/id_serveo \
             -o StrictHostKeyChecking=no \
             -o ServerAliveInterval=30 \
-            -o ExitOnForwardFailure=yes \
             -R "${SUBDOMAIN}:80:localhost:8080" serveo.net > serveo.log 2>&1 &
             
           echo "⏳ Waiting for tunnel handshake..."
           sleep 5
           
           echo "=========================================================="
-          echo "✨ YOUR TARGET PUBLIC URL IS:"
-          echo "https://${SUBDOMAIN}.serveousercontent.com"
+          echo "✨ YOUR ACTIVE PUBLIC URL IS:"
+          # This extracts the actual URL assigned by Serveo out of the log file
+          grep -o 'https://[^ ]*' serveo.log || echo "https://${SUBDOMAIN}.serveo.net (Assuming requested domain)"
           echo "=========================================================="
+          
           echo "📋 Checking connection logs..."
-          cat serveo.log || true
+          cat serveo.log
 
       - name: Keep Runner Open for Use
         run: |
