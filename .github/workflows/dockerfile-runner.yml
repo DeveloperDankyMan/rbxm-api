@@ -27,20 +27,20 @@ jobs:
 
       - name: Launch Permanent Cloudflare Tunnel
         run: |
-          echo "🚀 Downloading Cloudflare daemon..."
+          echo "🚀 Fetching Cloudflare connector..."
           curl -LO https://github.com
           sudo dpkg -i cloudflared-linux-amd64.deb
           
-          echo "🔗 Connecting named tunnel to rbxm-api subdomain..."
-          # Running your dedicated tunnel using your secure token secret in the background
+          echo "🔗 Connecting named tunnel to your subdomain endpoint..."
+          # Securely executes cloudflared in the background using your GitHub secret token
           cloudflared tunnel --no-autoupdate run --token "${{ secrets.CF_TUNNEL_TOKEN }}" &
           
           echo "=========================================================="
-          echo "✨ Tunnel Active!"
-          echo "🔗 Access your API at your custom domain root or /health path."
+          echo "✨ Cloudflare Named Tunnel Connected!"
+          echo "🔗 Traffic is now routing directly to your custom subdomain."
           echo "=========================================================="
 
       - name: Keep Runner Open for Use
         run: |
-          echo "⏳ Tunnel is live! Keeping runner awake..."
+          echo "⏳ Tunnel is active! Keeping the GitHub runner awake..."
           sleep 1h
