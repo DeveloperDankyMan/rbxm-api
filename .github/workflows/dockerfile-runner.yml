@@ -24,6 +24,9 @@ jobs:
             -e RBXM_API_KEY="${{ secrets.RBXM_API_KEY || vars.RBXM_API_KEY }}" \
             my-local-image:latest
 
+      # IF YOU HAVE A SECOND DOCKER CONTAINER RUNNING ON ANOTHER PORT (e.g., 3000), START IT HERE
+
+       bridges: [ "main" ]
       - name: Launch Ephemeral Ngrok Tunnel
         env:
           NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
@@ -37,29 +40,40 @@ jobs:
           && sudo apt update \
           && sudo apt install ngrok
 
-          ngrok config check
-          
           echo "🔐 Authenticating ngrok agent..."
           ngrok config add-authtoken "$NGROK_AUTHTOKEN"
           
-          echo "🔗 Connecting temporary tunnel to port 8080..."
-          ngrok http 8080 --url "$NGROK_DOMAIN"
+          echo "📝 Generating multi-endpoint configuration..."
+          cat <<EOF > multi-ngrok.yml
+          version: "3"
+          endpoints:
+            rbxm-api:
+              upstream:
+                url: 8080
+              domain: $NGROK_DOMAIN
+          EOF
+
+          echo "🔗 Connecting temporary tunnels in the background..."
+          # Running with '&' ensures the background process doesn't block the GitHub runner from moving to the next steps
+          ngrok start --all --config multi-ngrok.yml --log stdout > ngrok.log 2>&1 &
           
           # Allow the agent a brief moment to finish handshaking
           sleep 5
           
           echo "=========================================================="
-          echo "✨ YOUR DYNAMIC API URL IS:"
-          # Pulls the active address right out of ngrok's local runtime log
+          echo "✨ YOUR ACTIVE TUNNELS ARE:"
+          # Pulls all active public tunnel addresses out of the log
           grep -o 'url=https://[^ ]*' ngrok.log | cut -d= -f2 || echo "⚠️ Link extraction delayed. Check logs below."
           echo "=========================================================="
 
+      # This step will now successfully display logs because ngrok was sent to the background
       - name: Output Log Check
         run: |
           echo "📋 Displaying connection info..."
           cat ngrok.log
 
+      # Keeps your session alive for 1 hour so you can test your endpoints
       - name: Keep Runner Open for Use
         run: |
-          echo "⏳ Tunnel is active! Keeping the GitHub runner awake..."
+          echo "⏳ Tunnels are active! Keeping the GitHub runner awake..."
           sleep 1h
