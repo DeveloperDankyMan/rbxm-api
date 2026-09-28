@@ -1,4 +1,5 @@
 name: Docker Build & Shared Serveo Tunnel
+
 on:
   push:
     branches: [ "main" ]
@@ -6,6 +7,8 @@ on:
 
 jobs:
   build-and-tunnel:
+  # Added a timeout to prevent the 1h sleep from exhausting runner minutes if abandoned
+    timeout-minutes: 70
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -23,22 +26,34 @@ jobs:
             -e RBXM_API_KEY="${{ secrets.RBXM_API_KEY || vars.RBXM_API_KEY }}" \
             my-local-image:latest
 
-      - name: Launch Ephemeral Serveo Tunnel
+      - name: Launch Ephemeral Serveo Tunnel (With Auto-Generated Key)
+        env:
+          SUB_DOMAIN: ${{ github.event.repository.name }}
         run: |
-          echo "🔗 Connecting to Serveo with custom subdomain rbxm-api..."
-          # Request rbxm-api subdomain. -o ServerAliveInterval=30 keeps the connection from dropping.
-          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -R ${{ github.event.repository.name }}:80:localhost:8080 serveo.net > serveo.log 2>&1 &
+          echo "🔑 Generating temporary SSH key pair on the runner..."
+          mkdir -p ~/.ssh
+          ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_serveo
+          chmod 600 ~/.ssh/id_serveo
           
-          # Quick pause to let the handshake complete
+          echo "🔗 Connecting to Serveo using the generated ephemeral key..."
+          ssh-keyscan -H serveo.net >> ~/.ssh/known_hosts 2>/dev/null
+          
+          # Run SSH in background and redirect output properly
+          ssh -i ~/.ssh/id_serveo \
+            -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=30 \
+            -o ExitOnForwardFailure=yes \
+            -R "${SUBDOMAIN}:80:localhost:8080" serveo.net > serveo.log 2>&1 &
+            
+          echo "⏳ Waiting for tunnel handshake..."
           sleep 5
-
+          
           echo "=========================================================="
           echo "✨ YOUR TARGET PUBLIC URL IS:"
-          echo "https://rbxm-api.serveousercontent.com"
+          echo "https://${SUBDOMAIN}.serveousercontent.com"
           echo "=========================================================="
-          
           echo "📋 Checking connection logs..."
-          cat serveo.log
+          cat serveo.log || true
 
       - name: Keep Runner Open for Use
         run: |
