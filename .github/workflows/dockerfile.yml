@@ -1,4 +1,4 @@
-name: Docker Build & Shared Serveo Tunnel
+name: Docker Build & Shared Wormhole Tunnel
 
 on:
   push:
@@ -25,36 +25,29 @@ jobs:
             -e RBXM_API_KEY="${{ secrets.RBXM_API_KEY || vars.RBXM_API_KEY }}" \
             my-local-image:latest
 
-      - name: Launch Ephemeral Serveo Tunnel (With Auto-Generated Key)
+      - name: Launch Ephemeral Wormhole Tunnel
         env:
           SUBDOMAIN: ${{ github.event.repository.name }}
+          WORMHOLE_TOKEN: ${{ secrets.WORMHOLE_TOKEN }}
         run: |
-          echo "🔑 Generating temporary SSH key pair on the runner..."
-          mkdir -p ~/.ssh
-          ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_serveo
-          chmod 600 ~/.ssh/id_serveo
+          echo "📥 Downloading Wormhole CLI onto the runner..."
+          curl -fsSL https://wormhole.bar/install.sh | sh
           
-          echo "🔗 Fetching host identity keys..."
-          ssh-keyscan -H serveo.net >> ~/.ssh/known_hosts 2>/dev/null
-          
-          echo "🔗 Connecting to Serveo..."
-          # Removed ExitOnForwardFailure so it falls back gracefully instead of crashing
-          ssh -i ~/.ssh/id_serveo \
-            -o StrictHostKeyChecking=no \
-            -o ServerAliveInterval=30 \
-            -R "${SUBDOMAIN}:80:localhost:8080" serveo.net > serveo.log 2>&1 &
+          echo "🔗 Connecting to Wormhole..."
+          # Routes your dynamic subdomain token directly through the CLI tool backgrounded (&)
+          # Note that port 8080 is targeted to match your container's port mapping
+          wormhole http 8080 --subdomain "${SUBDOMAIN}" > wormhole.log 2>&1 &
             
           echo "⏳ Waiting for tunnel handshake..."
           sleep 5
           
           echo "=========================================================="
           echo "✨ YOUR ACTIVE PUBLIC URL IS:"
-          # This extracts the actual URL assigned by Serveo out of the log file
-          grep -o 'https://[^ ]*' serveo.log || echo "https://${SUBDOMAIN}.serveo.net (Assuming requested domain)"
+          echo "https://${SUBDOMAIN}.wormhole.bar"
           echo "=========================================================="
           
           echo "📋 Checking connection logs..."
-          cat serveo.log
+          cat wormhole.log
 
       - name: Keep Runner Open for Use
         run: |
