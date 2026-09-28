@@ -1,0 +1,5 @@
+version: "3"
+endpoints:
+  rbxm-api:
+    upstream:
+      url: 8080
