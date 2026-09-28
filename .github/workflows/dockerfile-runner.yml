@@ -45,12 +45,13 @@ jobs:
           echo "🚀 Starting Pinggy SSH Tunnel..."
           echo "=========================================================="
           
-          # Binding directly via localhost rules to dodge string parsers
+          # Adding 'b' to the username tells Pinggy to automatically rewrite 
+          # the Host header to 'localhost:8080' so your Rust app accepts it.
           ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -fN \
             -p 443 \
             -L 4300:localhost:4300 \
             -R 0:localhost:8080 \
-            free@a.pinggy.io u:Host:rbxm-api.com
+            b+free@a.pinggy.io
 
           echo "⏳ Waiting for Pinggy to assign your live public URL..."
           sleep 6
@@ -58,7 +59,6 @@ jobs:
           echo "=========================================================="
           echo "🔗 LIVE PUBLIC URLS:"
           echo "=========================================================="
-          # Quoted layout string query execution
           curl -s "http://localhost:4300/urls" || echo "⚠️ URL fetching failed."
           echo "=========================================================="
 
