@@ -24,9 +24,8 @@ jobs:
             -e RBXM_API_KEY="${{ secrets.RBXM_API_KEY || vars.RBXM_API_KEY }}" \
             my-local-image:latest
 
-      # IF YOU HAVE A SECOND DOCKER CONTAINER RUNNING ON ANOTHER PORT (e.g., 3000), START IT HERE
+      # IF YOU HAVE A SECOND DOCKER CONTAINER, START IT HERE (e.g., exposing port 3000)
 
-       bridges: [ "main" ]
       - name: Launch Ephemeral Ngrok Tunnel
         env:
           NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
@@ -51,10 +50,12 @@ jobs:
               upstream:
                 url: 8080
               domain: $NGROK_DOMAIN
+            second-service:
+              upstream:
+                url: 3000
           EOF
 
           echo "🔗 Connecting temporary tunnels in the background..."
-          # Running with '&' ensures the background process doesn't block the GitHub runner from moving to the next steps
           ngrok start --all --config multi-ngrok.yml --log stdout > ngrok.log 2>&1 &
           
           # Allow the agent a brief moment to finish handshaking
@@ -62,17 +63,14 @@ jobs:
           
           echo "=========================================================="
           echo "✨ YOUR ACTIVE TUNNELS ARE:"
-          # Pulls all active public tunnel addresses out of the log
           grep -o 'url=https://[^ ]*' ngrok.log | cut -d= -f2 || echo "⚠️ Link extraction delayed. Check logs below."
           echo "=========================================================="
 
-      # This step will now successfully display logs because ngrok was sent to the background
       - name: Output Log Check
         run: |
           echo "📋 Displaying connection info..."
           cat ngrok.log
 
-      # Keeps your session alive for 1 hour so you can test your endpoints
       - name: Keep Runner Open for Use
         run: |
           echo "⏳ Tunnels are active! Keeping the GitHub runner awake..."
