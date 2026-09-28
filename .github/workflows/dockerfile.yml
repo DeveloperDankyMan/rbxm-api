@@ -28,7 +28,7 @@ jobs:
 
       - name: Launch Ephemeral Serveo Tunnel (With Auto-Generated Key)
         env:
-          SUB_DOMAIN: ${{ github.event.repository.name }}
+          SUBDOMAIN: ${{ github.event.repository.name }}
         run: |
           echo "🔑 Generating temporary SSH key pair on the runner..."
           mkdir -p ~/.ssh
