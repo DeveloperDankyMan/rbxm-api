@@ -39,7 +39,7 @@ jobs:
         run: |
           echo "🚀 Starting Cloudflare Quick Tunnel..."
           # Download the official cloudflared binary
-          wget hhttps://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
           sudo dpkg -i cloudflared-linux-amd64.deb
           
           # Start a tunnel pointing to your Docker port and save logs to find the URL
