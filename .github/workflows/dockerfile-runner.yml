@@ -50,7 +50,7 @@ jobs:
             -p 443 \
             -L 4300:localhost:4300 \
             -R 0:localhost:8080 \
-            free@a.pinggy.io
+            free@a.pinggy.io u:Host:rbxm-api.com
 
           echo "⏳ Waiting for Pinggy to assign your live public URL..."
           sleep 6
