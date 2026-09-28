@@ -1,5 +1,8 @@
 version: 3
 tunnels:
   rbxm-api:
+    schemes:
+      - http
+      - https
     addr: 8080
     proto: http
