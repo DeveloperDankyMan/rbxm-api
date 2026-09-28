@@ -27,6 +27,7 @@ jobs:
       - name: Launch Ephemeral Ngrok Tunnel
         env:
           NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
+          NGROK_DOMAIN: "${{ github.event.repository.name }}.ngrok-free.app"
         run: |
           echo "🚀 Installing ngrok via official script..."
           curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc \
@@ -35,12 +36,14 @@ jobs:
           | sudo tee /etc/apt/sources.list.d/ngrok.list \
           && sudo apt update \
           && sudo apt install ngrok
+
+          ngrok config check
           
           echo "🔐 Authenticating ngrok agent..."
-          ngrok config add-authtoken "${{ secrets.NGROK_AUTHTOKEN }}"
+          ngrok config add-authtoken "$NGROK_AUTHTOKEN"
           
           echo "🔗 Connecting temporary tunnel to port 8080..."
-          ngrok http 8080 --url http://${{ github.event.repository.name }}.ngrok-free.app
+          ngrok http 8080 --url "$NGROK_DOMAIN"
           
           # Allow the agent a brief moment to finish handshaking
           sleep 5
