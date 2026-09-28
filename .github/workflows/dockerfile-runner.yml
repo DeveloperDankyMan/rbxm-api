@@ -42,16 +42,6 @@ jobs:
           echo "🔐 Authenticating ngrok agent..."
           ngrok config add-authtoken "$NGROK_AUTHTOKEN"
           
-          echo "📝 Generating multi-endpoint configuration..."
-          cat <<EOF > multi-ngrok.yml
-          version: "3"
-          endpoints:
-            -name: rbxm-api
-              upstream:
-                url: 8080
-              domain: $NGROK_DOMAIN
-          EOF
-
           echo "🔗 Connecting temporary tunnels in the background..."
           ngrok start --all --config multi-ngrok.yml --log stdout > ngrok.log 2>&1 &
           
