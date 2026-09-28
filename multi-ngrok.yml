@@ -1,0 +1,6 @@
+version: "3"
+endpoints:
+  - name: rbxm-api
+    upstream:
+      url: 8080
+    domain: "http://rbxm-api.ngrok-free.app"
