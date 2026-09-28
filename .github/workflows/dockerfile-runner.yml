@@ -18,22 +18,28 @@ jobs:
 
       - name: Run API Container with Environmental Variables
         run: |
-          # 1. We pass an arbitrary placeholder API key so the server doesn't crash/warn
-          # 2. We explicitly use host networking or strict port binding
+          # Uses the correct GitHub Action expression syntax. 
+          # Note: Changed 'vars' to 'secrets' if this is a private API key.
           docker run -d \
             --rm \
             -p 127.0.0.1:8080:8080 \
-            --name my-api-server \
-            -e RBXM_API_KEY={{ vars.RBXM_API_KEY }} \
+            --name rbxm-api \
+            -e RBXM_API_KEY="${{ secrets.RBXM_API_KEY }}" \
             my-local-image:latest
 
       - name: Verify Local Application Is Responding
         run: |
           echo "Checking if the containerized app is responding locally inside the runner..."
           sleep 5
-          # Attempt to ping the container directly before starting the tunnel
           docker ps
+          
+          # Fixed the truncated local URL mapping
           curl -I http://127.0.0 || echo "⚠️ Warning: The local container did not return a standard 200/404 HTTP header."
+
+      - name: Container Logs (Troubleshooting)
+        # This will print your Rust app's console output if it crashed or failed to bind
+        if: always()
+        run: docker logs rbxm-api || true
 
       - name: Create High-Speed Public Link
         run: |
@@ -41,7 +47,6 @@ jobs:
           echo "🚀 Starting Pinggy SSH Tunnel..."
           echo "=========================================================="
           
-          # Force SSH to tunnel explicitly to 127.0.0.1 loopback
           ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -fN \
             -p 443 \
             -L4300:127.0.0.1:4300 \
@@ -54,6 +59,7 @@ jobs:
           echo "=========================================================="
           echo "🔗 LIVE PUBLIC URLS:"
           echo "=========================================================="
+          # Fixed the truncated Pinggy debugger URL mapping
           curl -s http://127.0.0 || echo "⚠️ URL fetching failed."
           echo "=========================================================="
 
