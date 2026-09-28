@@ -25,7 +25,6 @@ jobs:
 
       - name: Launch Ephemeral Serveo Tunnel
         run: |
-          ssh-keygen
           echo "🔗 Connecting to Serveo with custom subdomain rbxm-api..."
           # Request rbxm-api subdomain. -o ServerAliveInterval=30 keeps the connection from dropping.
           ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -R ${{ github.event.repository.name }}:80:localhost:8080 serveo.net > serveo.log 2>&1 &
