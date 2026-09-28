@@ -25,19 +25,26 @@ jobs:
         run: |
           echo "=========================================================="
           echo "🚀 Starting Pinggy SSH Tunnel..."
-          echo "🔗 Look below for your live, secure HTTPS public URL!"
           echo "=========================================================="
           
-          # 1. Establish the tunnel in the background using SSH (-fN)
-          # Routes Pinggy's public HTTPS edge directly to your local port 8080
-          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -fN -p 443 -R0:localhost:8080 free@a.pinggy.io
+          # 1. Establish tunnel & explicitly bind the Web Debugger API (-L4300:localhost:4300)
+          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -fN \
+            -p 443 \
+            -L4300:localhost:4300 \
+            -R0:localhost:8080 \
+            free@a.pinggy.io
 
-          # 2. Give the tunnel 3 seconds to spin up and fetch its assigned URL
-          sleep 3
+          # 2. Wait for the tunnel to initialize
+          echo "⏳ Waiting for Pinggy to assign your live public URL..."
+          sleep 5
 
-          # 3. Request the active public URLs directly from the local SSH session
-          # This prints the temporary free HTTPS link cleanly inside your GitHub logs
-          curl -s http://localhost:4321/urls || echo "⚠️ URL fetching failed. Please check live logs above."
+          # 3. Request the dynamically assigned public URLs from the local debugger API
+          echo "=========================================================="
+          echo "🔗 LIVE PUBLIC URLS:"
+          echo "=========================================================="
+          curl -s http://localhost:4300/urls || echo "⚠️ URL fetching failed. Pinggy debugger could not be reached."
+          echo "=========================================================="
+
 
       - name: Keep Runner Open for Use
         run: |
