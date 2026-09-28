@@ -28,7 +28,7 @@ jobs:
       - name: Launch Permanent Cloudflare Tunnel
         run: |
           echo "🚀 Fetching Cloudflare connector..."
-          curl -LO https://github.com
+          curl -LO https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
           sudo dpkg -i cloudflared-linux-amd64.deb
           
           echo "🔗 Connecting named tunnel to your subdomain endpoint..."
