@@ -46,13 +46,10 @@ jobs:
           cat <<EOF > multi-ngrok.yml
           version: "3"
           endpoints:
-            rbxm-api:
+            -name: rbxm-api
               upstream:
                 url: 8080
               domain: $NGROK_DOMAIN
-            second-service:
-              upstream:
-                url: 3000
           EOF
 
           echo "🔗 Connecting temporary tunnels in the background..."
