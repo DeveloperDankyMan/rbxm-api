@@ -1,4 +1,4 @@
-name: Docker Build & Fast Public Tunnel
+name: Docker Build & Permanent Cloudflare Tunnel
 
 on:
   push:
@@ -18,7 +18,6 @@ jobs:
 
       - name: Run API Container with Environmental Variables
         run: |
-          # Leaving name as default or overriding via --name rbxm-api
           docker run -d \
             --rm \
             -p 8080:8080 \
@@ -26,37 +25,20 @@ jobs:
             -e RBXM_API_KEY="${{ secrets.RBXM_API_KEY || vars.RBXM_API_KEY }}" \
             my-local-image:latest
 
-      - name: Verify Local Application Is Responding
+      - name: Launch Permanent Cloudflare Tunnel
         run: |
-          echo "Checking if the containerized app is responding locally inside the runner..."
-          sleep 5
-          docker ps
-          
-          # Wrapping completely in strict string literals using localhost
-          curl -I "http://localhost:8080/" || echo "⚠️ Warning: Could not reach port 8080 directly."
-
-      - name: Create Cloudflare Tunnel
-        run: |
-          echo "🚀 Starting Cloudflare Quick Tunnel..."
-          # Download the official cloudflared binary
-          wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          echo "🚀 Downloading Cloudflare daemon..."
+          curl -LO https://github.com
           sudo dpkg -i cloudflared-linux-amd64.deb
           
-          # Start a tunnel pointing to your Docker port and save logs to find the URL
-          cloudflared tunnel --url http://localhost:8080 > cloudflare.log 2>&1 &
-          
-          echo "⏳ Waiting for Cloudflare to generate your secure link..."
-          sleep 8
+          echo "🔗 Connecting named tunnel to rbxm-api subdomain..."
+          # Running your dedicated tunnel using your secure token secret in the background
+          cloudflared tunnel --no-autoupdate run --token "${{ secrets.CF_TUNNEL_TOKEN }}" &
           
           echo "=========================================================="
-          echo "🔗 LIVE CLOUDFLARE URL:"
+          echo "✨ Tunnel Active!"
+          echo "🔗 Access your API at your custom domain root or /health path."
           echo "=========================================================="
-          grep -o 'https://[-a-zA-Z0-9]*\.trycloudflare\.com' cloudflare.log | head -n 1 || echo "⚠️ Link extraction failed. Check cloudflare.log below."
-          echo "=========================================================="
-
-      - name: Debug Cloudflare Logs
-        if: always()
-        run: cat cloudflare.log
 
       - name: Keep Runner Open for Use
         run: |
