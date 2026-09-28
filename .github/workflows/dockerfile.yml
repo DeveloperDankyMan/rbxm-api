@@ -32,6 +32,8 @@ jobs:
         run: |
           echo "📥 Downloading Wormhole CLI onto the runner..."
           curl -fsSL https://wormhole.bar/install.sh | sh
+
+          wormhole login
           
           echo "🔗 Connecting to Wormhole..."
           # Routes your dynamic subdomain token directly through the CLI tool backgrounded (&)
