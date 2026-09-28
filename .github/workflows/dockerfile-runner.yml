@@ -41,8 +41,8 @@ jobs:
 
           echo "🔐 Authenticating ngrok agent..."
           ngrok config add-authtoken "$NGROK_AUTHTOKEN"
-          echo "🔗 Starting random ephemeral tunnel on port 8080..."
-          ngrok http 8080 --log stdout > ngrok.log 2>&1 &
+          echo "🔗 Connecting temporary tunnels using multi-ngrok.yml..."
+          ngrok start --all --config multi-ngrok.yml --log stdout > ngrok.log 2>&1 &
           sleep 5
           echo "=========================================================="
           echo "✨ YOUR ACTIVE TUNNELS ARE:"
