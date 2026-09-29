@@ -25,31 +25,21 @@ jobs:
             -e RBXM_API_KEY="${{ secrets.RBXM_API_KEY || vars.RBXM_API_KEY }}" \
             my-local-image:latest
 
-      - name: Launch Ephemeral Wormhole Tunnel
+      - name: Start Serveo Tunnel
         env:
           SUBDOMAIN: ${{ github.event.repository.name }}
-          WORMHOLE_TOKEN: ${{ secrets.WORMHOLE_TOKEN }}
         run: |
-          echo "📥 Downloading Wormhole CLI onto the runner..."
-          curl -fsSL https://wormhole.bar/install.sh | sh
-
-          wormhole login
-          
-          echo "🔗 Connecting to Wormhole..."
-          # Routes your dynamic subdomain token directly through the CLI tool backgrounded (&)
-          # Note that port 8080 is targeted to match your container's port mapping
-          wormhole http 8080 --subdomain "${SUBDOMAIN}" > wormhole.log 2>&1 &
-            
-          echo "⏳ Waiting for tunnel handshake..."
-          sleep 5
+          echo "🔗 Connecting directly via native SSH socket..."
+          # Requests your custom subdomain instantly without a token setup
+          ssh -o StrictHostKeyChecking=no -R ${SUBDOMAIN}.serveousercontent.com:80:localhost:8080 serveo.net > serveo.log 2>&1 &
+      
+          echo "⏳ Waiting for connection handshake..."
+          sleep 3
           
           echo "=========================================================="
-          echo "✨ YOUR ACTIVE PUBLIC URL IS:"
-          echo "https://${SUBDOMAIN}.wormhole.bar"
+          echo "✨ YOUR SERVEO PUBLIC URL IS:"
+          echo "https://${SUBDOMAIN}.serveousercontent.com"
           echo "=========================================================="
-          
-          echo "📋 Checking connection logs..."
-          cat wormhole.log
 
       - name: Keep Runner Open for Use
         run: |
