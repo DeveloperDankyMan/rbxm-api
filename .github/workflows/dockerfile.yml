@@ -31,22 +31,21 @@ jobs:
           TUNNELTO_KEY: d8LnkQi1TYkv1vVhz9gGCRbuvcIy4CXH
         run: |
           echo "📥 Downloading and installing Tunnelto CLI..."
-          # Downloads the binary straight into the runner's path environment
-          curl -fsSL https://app.tunnelto.me/install.sh | sh -s -- --skip-setup
+          # Download the installation script without custom flags to prevent installation warnings
+          curl -fsSL https://app.tunnelto.me/install.sh | sh
       
           echo "🔑 Pre-seeding headless token credentials configuration..."
-          # Create the config directory where the client expects it
           mkdir -p ~/.tunnelto
           
-          # Write the credential file dynamically to bypass interactive prompts
-          echo "{\"token\":\"${TUNNELTO_TOKEN}\",\"name\":\"gh-actions-runner\"}" > ~/.tunnelto/client.json
+          # Inject both the API server destination URL and your active token keys
+          echo "{\"token\":\"${TUNNELTO_KEY}\",\"name\":\"gh-actions-runner\",\"server_url\":\"https://app.tunnelto.me\"}" > ~/.tunnelto/client.json
       
           echo "⚙️ Adding custom tunnel routing mapping..."
-          # Point your requested subdomain to target your container's 8080 port mapping
-          tunnelto add "${SUBDOMAIN}" 8080
+          # Call the binary using its explicit target path
+          /home/runner/.local/bin/tunnelto add "${SUBDOMAIN}" 8080
       
           echo "🔗 Starting Tunnelto background service daemon..."
-          tunnelto start
+          /home/runner/.local/bin/tunnelto start
       
           echo "⏳ Waiting for handshake validation..."
           sleep 5
@@ -57,7 +56,7 @@ jobs:
           echo "=========================================================="
       
           echo "📋 Verifying connection active status..."
-          tunnelto status
+          /home/runner/.local/bin/tunnelto status
 
       - name: Keep Runner Open for Use
         run: |
