@@ -28,18 +28,17 @@ jobs:
       - name: Start Serveo Tunnel
         env:
           SUBDOMAIN: ${{ github.event.repository.name }}
+          TUNNELTO_KEY: d8LnkQi1TYkv1vVhz9gGCRbuvcIy4CXH
         run: |
-          echo "🔗 Connecting directly via native SSH socket..."
-          # Requests your custom subdomain instantly without a token setup
-          ssh -o StrictHostKeyChecking=no -R ${SUBDOMAIN}.serveousercontent.com:80:localhost:8080 serveo.net > serveo.log 2>&1 &
+         echo "📥 Downloading Tunnelto CLI..."
+         curl -fsSL https://app.tunnelto.me/install.sh | sh -s -- -t "$TUNNELTO_KEY"
+         sudo mv tunnelto /usr/local/bin/
       
-          echo "⏳ Waiting for connection handshake..."
-          sleep 3
-          
-          echo "=========================================================="
-          echo "✨ YOUR SERVEO PUBLIC URL IS:"
-          echo "https://${SUBDOMAIN}.serveousercontent.com"
-          echo "=========================================================="
+         echo "🔗 Launching Headless Tunnel..."
+         tunnelto --key "$TUNNELTO_KEY" --subdomain "$SUBDOMAIN" --port 8080 > tunnelto.log 2>&1 &
+      
+         sleep 5
+         cat tunnelto.log
 
       - name: Keep Runner Open for Use
         run: |
