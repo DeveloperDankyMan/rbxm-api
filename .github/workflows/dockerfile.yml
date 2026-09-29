@@ -30,15 +30,34 @@ jobs:
           SUBDOMAIN: ${{ github.event.repository.name }}
           TUNNELTO_KEY: d8LnkQi1TYkv1vVhz9gGCRbuvcIy4CXH
         run: |
-         echo "📥 Downloading Tunnelto CLI..."
-         curl -fsSL https://app.tunnelto.me/install.sh | sh -s -- -t "$TUNNELTO_KEY"
-         sudo mv tunnelto /usr/local/bin/
+          echo "📥 Downloading and installing Tunnelto CLI..."
+          # Downloads the binary straight into the runner's path environment
+          curl -fsSL https://app.tunnelto.me/install.sh | sh -s -- --skip-setup
       
-         echo "🔗 Launching Headless Tunnel..."
-         tunnelto --key "$TUNNELTO_KEY" --subdomain "$SUBDOMAIN" --port 8080 > tunnelto.log 2>&1 &
+          echo "🔑 Pre-seeding headless token credentials configuration..."
+          # Create the config directory where the client expects it
+          mkdir -p ~/.tunnelto
+          
+          # Write the credential file dynamically to bypass interactive prompts
+          echo "{\"token\":\"${TUNNELTO_TOKEN}\",\"name\":\"gh-actions-runner\"}" > ~/.tunnelto/client.json
       
-         sleep 5
-         cat tunnelto.log
+          echo "⚙️ Adding custom tunnel routing mapping..."
+          # Point your requested subdomain to target your container's 8080 port mapping
+          tunnelto add "${SUBDOMAIN}" 8080
+      
+          echo "🔗 Starting Tunnelto background service daemon..."
+          tunnelto start
+      
+          echo "⏳ Waiting for handshake validation..."
+          sleep 5
+      
+          echo "=========================================================="
+          echo "✨ YOUR ACTIVE PUBLIC URL IS:"
+          echo "https://${SUBDOMAIN}.tunnelto.me"
+          echo "=========================================================="
+      
+          echo "📋 Verifying connection active status..."
+          tunnelto status
 
       - name: Keep Runner Open for Use
         run: |
