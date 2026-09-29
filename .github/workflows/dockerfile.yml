@@ -25,27 +25,16 @@ jobs:
             -e RBXM_API_KEY="${{ secrets.RBXM_API_KEY || vars.RBXM_API_KEY }}" \
             my-local-image:latest
 
-      - name: Start Serveo Tunnel
+      - name: Start Tunnelto
         env:
           SUBDOMAIN: ${{ github.event.repository.name }}
           TUNNELTO_KEY: d8LnkQi1TYkv1vVhz9gGCRbuvcIy4CXH
         run: |
           echo "📥 Downloading and installing Tunnelto CLI..."
-          # Download the installation script without custom flags to prevent installation warnings
-          curl -fsSL https://app.tunnelto.me/install.sh | sh
+          curl -fsSL https://app.tunnelto.me/install.sh | sh -s -- -t "${TUNNELTO_KEY}"
       
-          echo "🔑 Pre-seeding headless token credentials configuration..."
-          mkdir -p ~/.tunnelto
-          
-          # Inject both the API server destination URL and your active token keys
-          echo "{\"token\":\"${TUNNELTO_KEY}\",\"name\":\"gh-actions-runner\",\"server_url\":\"https://app.tunnelto.me\"}" > ~/.tunnelto/client.json
-      
-          echo "⚙️ Adding custom tunnel routing mapping..."
-          # Call the binary using its explicit target path
-          /home/runner/.local/bin/tunnelto add "${SUBDOMAIN}" 8080
-      
-          echo "🔗 Starting Tunnelto background service daemon..."
-          /home/runner/.local/bin/tunnelto start
+          echo "🔗 Exposing port 8080 via headless connection flags..."
+          tunnelto add "${SUBDOMAIN}" 8080 > tunnelto.log 2>&1 &
       
           echo "⏳ Waiting for handshake validation..."
           sleep 5
@@ -55,8 +44,8 @@ jobs:
           echo "https://${SUBDOMAIN}.tunnelto.me"
           echo "=========================================================="
       
-          echo "📋 Verifying connection active status..."
-          /home/runner/.local/bin/tunnelto status
+          echo "📋 Checking connection logs..."
+          cat tunnelto.log
 
       - name: Keep Runner Open for Use
         run: |
