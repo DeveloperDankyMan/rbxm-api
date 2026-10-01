@@ -3,6 +3,10 @@ name = "rbxm-api"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = ["server"]
+server = ["dep:axum", "dep:tokio"]
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
