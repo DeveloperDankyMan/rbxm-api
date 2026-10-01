@@ -1,35 +1,186 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>rbxm-api</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px; }
+  h1 { color: #333; }
+  .section { margin: 30px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+  input[type="file"], textarea, button { font-size: 14px; padding: 8px; }
+  textarea { font-family: monospace; width: 100%; }
+  pre { background: #f5f5f5; padding: 12px; border-radius: 4px; overflow-x: auto; max-height: 400px; }
+  button { background: #0366d6; color: white; border: none; border-radius: 4px; cursor: pointer; padding: 10px 16px; }
+  button:hover { background: #0256c7; }
+  .error { color: #d73a49; }
+  .success { color: #28a745; }
+  .info { color: #6f42c1; }
+  .route { font-family: monospace; background: #f0f0f0; padding: 4px 8px; border-radius: 3px; }
+</style>
+
 <h1>RBXM ⇄ JSON</h1>
+<p>All processing happens in your browser — no server needed!</p>
 
-<p><b>.rbxm → JSON</b></p>
-<input type="file" id="in" accept=".rbxm">
-<pre id="out"></pre>
+<!-- HEALTH CHECK -->
+<div class="section">
+  <h2>Health</h2>
+  <button id="healthBtn">GET /health</button>
+  <pre id="healthOut"></pre>
+</div>
 
-<p><b>JSON → .rbxm</b></p>
-<textarea id="json" rows="8" cols="60"></textarea><br>
-<button id="enc">Download .rbxm</button>
+<!-- DECODE: .rbxm → JSON -->
+<div class="section">
+  <h2>Decode</h2>
+  <p><b>POST /decode</b> — Convert .rbxm file to JSON</p>
+  <input type="file" id="in" accept=".rbxm">
+  <pre id="out"></pre>
+</div>
+
+<!-- ENCODE: JSON → .rbxm -->
+<div class="section">
+  <h2>Encode</h2>
+  <p><b>POST /encode</b> — Convert JSON to .rbxm file</p>
+  <textarea id="json" rows="10" placeholder='Paste JSON tree here, e.g.:
+{
+  "instances": [
+    { "id": "1", "class": "Model", "name": "Part", "parent": null, "properties": {} }
+  ]
+}'></textarea><br><br>
+  <button id="enc">Download .rbxm</button>
+</div>
+
+<!-- SCHEMA: Get class schema -->
+<div class="section">
+  <h2>Schema</h2>
+  <p><b>GET /schema/:class</b> — Get properties and types for a class</p>
+  <input type="text" id="classInput" placeholder="Enter class name (e.g., Part, Model)" style="width: 100%; padding: 8px; margin-bottom: 10px;">
+  <button id="schemaBtn">Get Schema</button>
+  <pre id="schemaOut"></pre>
+</div>
+
+<!-- SCHEMAS: Get multiple class schemas -->
+<div class="section">
+  <h2>Schemas (Batch)</h2>
+  <p><b>GET /schemas?classes=A,B,C</b> — Get schemas for multiple classes</p>
+  <input type="text" id="classesInput" placeholder="Enter class names (comma-separated, e.g., Part,Model,Script)" style="width: 100%; padding: 8px; margin-bottom: 10px;">
+  <button id="schemasBtn">Get Schemas</button>
+  <pre id="schemasOut"></pre>
+</div>
 
 <script type="module">
-  import init, { rbxm_to_json, json_to_rbxm } from "./pkg/rbxm_api.js";
-  await init();
+  import init, {
+    rbxm_to_json,
+    json_to_rbxm,
+    encode_to_base64,
+    decode_from_base64,
+    class_schema_json,
+    class_schemas_json
+  } from "./pkg/rbxm_api.js";
 
-  document.getElementById("in").onchange = async (e) => {
-    const bytes = new Uint8Array(await e.target.files[0].arrayBuffer());
+  await init();
+  console.log("WASM initialized!");
+
+  // ============== HEALTH ==============
+  document.getElementById("healthBtn").onclick = () => {
     try {
-      document.getElementById("out").textContent =
-        JSON.stringify(JSON.parse(rbxm_to_json(bytes)), null, 2);
-    } catch (err) { document.getElementById("out").textContent = String(err); }
+      document.getElementById("healthOut").textContent = "ok";
+      document.getElementById("healthOut").className = "success";
+    } catch (err) {
+      document.getElementById("healthOut").textContent = String(err);
+      document.getElementById("healthOut").className = "error";
+    }
   };
 
-  document.getElementById("enc").onclick = () => {
+  // ============== DECODE: .rbxm → JSON ==============
+  document.getElementById("in").onchange = async (e) => {
+    const outEl = document.getElementById("out");
     try {
-      const bytes = json_to_rbxm(document.getElementById("json").value);
+      const bytes = new Uint8Array(await e.target.files[0].arrayBuffer());
+      const json = rbxm_to_json(bytes);
+      outEl.textContent = JSON.stringify(JSON.parse(json), null, 2);
+      outEl.className = "success";
+    } catch (err) {
+      outEl.textContent = String(err);
+      outEl.className = "error";
+    }
+  };
+
+  // ============== ENCODE: JSON → .rbxm ==============
+  document.getElementById("enc").onclick = () => {
+    const outEl = document.getElementById("out");
+    try {
+      const jsonText = document.getElementById("json").value.trim();
+      if (!jsonText) {
+        outEl.textContent = "Error: JSON field is empty";
+        outEl.className = "error";
+        return;
+      }
+
+      // Use json_to_rbxm directly to get bytes, then download
+      const bytes = json_to_rbxm(jsonText);
+      const blob = new Blob([bytes], { type: "application/octet-stream" });
       const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([bytes]));
+      a.href = URL.createObjectURL(blob);
       a.download = "out.rbxm";
       a.click();
-    } catch (err) { alert(err); }
+
+      outEl.textContent = `✓ Downloaded ${bytes.length} bytes`;
+      outEl.className = "success";
+    } catch (err) {
+      outEl.textContent = String(err);
+      outEl.className = "error";
+    }
+  };
+
+  // ============== SCHEMA: Single class ==============
+  document.getElementById("schemaBtn").onclick = () => {
+    const outEl = document.getElementById("schemaOut");
+    try {
+      const className = document.getElementById("classInput").value.trim();
+      if (!className) {
+        outEl.textContent = "Error: Enter a class name";
+        outEl.className = "error";
+        return;
+      }
+
+      const schema = class_schema_json(className);
+      outEl.textContent = JSON.stringify(JSON.parse(schema), null, 2);
+      outEl.className = "success";
+    } catch (err) {
+      outEl.textContent = String(err);
+      outEl.className = "error";
+    }
+  };
+
+  // Allow Enter key in class input
+  document.getElementById("classInput").onkeypress = (e) => {
+    if (e.key === "Enter") {
+      document.getElementById("schemaBtn").click();
+    }
+  };
+
+  // ============== SCHEMAS: Batch ==============
+  document.getElementById("schemasBtn").onclick = () => {
+    const outEl = document.getElementById("schemasOut");
+    try {
+      const classesStr = document.getElementById("classesInput").value.trim();
+      if (!classesStr) {
+        outEl.textContent = "Error: Enter at least one class name";
+        outEl.className = "error";
+        return;
+      }
+
+      const schemas = class_schemas_json(classesStr);
+      outEl.textContent = JSON.stringify(JSON.parse(schemas), null, 2);
+      outEl.className = "success";
+    } catch (err) {
+      outEl.textContent = String(err);
+      outEl.className = "error";
+    }
+  };
+
+  // Allow Enter key in classes input
+  document.getElementById("classesInput").onkeypress = (e) => {
+    if (e.key === "Enter") {
+      document.getElementById("schemasBtn").click();
+    }
   };
 </script>
