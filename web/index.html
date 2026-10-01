@@ -16,20 +16,25 @@
 </style>
 
 <h1>RBXM ⇄ JSON API</h1>
-<p class="info">This page connects to a real backend server with true API routes.</p>
+<p class="info">Connected to Cloudflare Worker</p>
 
 <div id="app"></div>
 
 <script>
-  // Detect if we're running locally or deployed
-  const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-  const apiBase = isLocal ? "http://localhost:3000" : window.location.origin;
-
-  console.log(`API Base: ${apiBase}`);
+  // Use Cloudflare Worker URL or local dev
+  const API_BASE = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    ? "http://localhost:8787"
+    : "https://rbxm-api.your-username.workers.dev";
 
   function renderUI() {
     const app = document.getElementById("app");
     app.innerHTML = `
+      <div class="section">
+        <h3>API URL: <code>${API_BASE}</code></h3>
+        <input type="text" id="apiUrl" value="${API_BASE}" style="margin-bottom: 10px;">
+        <button id="setApi">Set Custom URL</button>
+      </div>
+
       <div class="section">
         <h2>Health</h2>
         <button id="healthBtn">GET /health</button>
@@ -67,7 +72,13 @@
       </div>
     `;
 
-    // Health
+    let apiBase = API_BASE;
+
+    document.getElementById("setApi").onclick = () => {
+      apiBase = document.getElementById("apiUrl").value.trim();
+      console.log("API URL set to:", apiBase);
+    };
+
     document.getElementById("healthBtn").onclick = async () => {
       const out = document.getElementById("healthOut");
       try {
@@ -81,7 +92,6 @@
       }
     };
 
-    // Decode
     document.getElementById("in").onchange = async (e) => {
       const out = document.getElementById("out");
       try {
@@ -89,8 +99,7 @@
         const b64 = btoa(String.fromCharCode(...new Uint8Array(bytes)));
         const res = await fetch(`${apiBase}/decode`, {
           method: "POST",
-          body: b64,
-          headers: { "Content-Type": "text/plain" }
+          body: b64
         });
         const json = await res.json();
         out.textContent = JSON.stringify(json, null, 2);
@@ -101,7 +110,6 @@
       }
     };
 
-    // Encode
     document.getElementById("enc").onclick = async () => {
       const out = document.getElementById("out");
       try {
@@ -114,8 +122,7 @@
 
         const res = await fetch(`${apiBase}/encode`, {
           method: "POST",
-          body: jsonText,
-          headers: { "Content-Type": "application/json" }
+          body: jsonText
         });
 
         if (!res.ok) {
@@ -140,7 +147,6 @@
       }
     };
 
-    // Schema
     document.getElementById("schemaBtn").onclick = async () => {
       const out = document.getElementById("schemaOut");
       try {
@@ -159,7 +165,6 @@
       if (e.key === "Enter") document.getElementById("schemaBtn").click();
     };
 
-    // Schemas
     document.getElementById("schemasBtn").onclick = async () => {
       const out = document.getElementById("schemasOut");
       try {
