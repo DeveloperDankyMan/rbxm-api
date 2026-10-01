@@ -33,7 +33,7 @@ jobs:
         run: cargo tree -i wasm-bindgen
 
       - name: Build WASM
-        run: wasm-pack build --target web --release --out-dir web/pkg
+        run: wasm-pack build --target web --release --out-dir web/pkg -- --no-default-features
 
       - name: Remove files Pages doesn't need
         run: rm -f web/pkg/.gitignore web/pkg/package.json
