@@ -2,10 +2,10 @@ name: rbxm-api
 
 on:
   workflow_dispatch:        # manual start, and how the job restarts itself
-  schedule:
-    - cron: "0 */6 * * *"   # backup restart if the self-restart ever fails
-  push:
-    branches: [main]
+  # schedule:
+  #   - cron: "0 */6 * * *"   # backup restart if the self-restart ever fails
+  # push:
+  #   branches: [main]
 
 # Only one server at a time; a new run waits for the old one instead of killing it.
 concurrency:
