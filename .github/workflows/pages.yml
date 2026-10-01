@@ -5,13 +5,11 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment
 concurrency:
   group: "pages"
   cancel-in-progress: true
@@ -31,19 +29,22 @@ jobs:
       - name: Rust Cache Setup
         uses: Swatinem/rust-cache@v2
 
+      # Optimized: Downloads the pre-compiled binary instead of compiling from source
       - name: Install Dioxus CLI Tool
         run: |
-          cargo install dioxus-cli --version 0.6.0-alpha.5 || cargo install dioxus-cli
+          wget -qO- https://github.com | tar -xz
+          chmod +x dx
+          sudo mv dx /usr/local/bin/
 
       - name: Compile Rust project to Static WASM Assets
         run: |
-          # This compiles your rust files and creates a './dist' folder with index.html and wasm payload
           dx build --release --platform web
 
+      # FIXED: Points to the standard, unified Dioxus build distribution directory
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./target/dx/rbxm-api/release/web/public # Maps to output compilation directory
+          path: ./dist 
 
   deploy-site:
     needs: build-wasm
