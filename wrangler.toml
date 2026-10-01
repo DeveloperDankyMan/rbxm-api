@@ -1,0 +1,20 @@
+name = "rbxm-api"
+main = "worker.js"
+type = "javascript"
+account_id = ""
+workers_dev = true
+
+[env.production]
+name = "rbxm-api-prod"
+
+[[r2_buckets]]
+binding = "WASM_BUCKET"
+bucket_name = "rbxm-api-wasm"
+
+[build]
+command = "npm run build"
+cwd = "."
+watch_paths = ["src/**/*.rs"]
+
+[build.upload]
+format = "service-worker"
