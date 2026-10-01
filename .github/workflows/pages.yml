@@ -30,11 +30,11 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       # Optimized: Downloads the pre-compiled binary instead of compiling from source
-      - name: Install Dioxus CLI Tool
-        run: |
-          wget -qO- https://github.com | tar -xz
-          chmod +x dx
-          sudo mv dx /usr/local/bin/
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@main
+      
+      - name: Install Dioxus CLI
+        run: cargo binstall dioxus-cli --no-confirm --force
 
       - name: Compile Rust project to Static WASM Assets
         run: |
