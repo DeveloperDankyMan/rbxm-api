@@ -3,6 +3,7 @@ pub mod convert;
 pub mod schema;
 pub mod wire;
 
+use base64::Engine;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -16,6 +17,26 @@ pub fn json_to_rbxm(json: &str) -> Result<Vec<u8>, JsError> {
     let tree: wire::Tree =
         serde_json::from_str(json).map_err(|e| JsError::new(&e.to_string()))?;
     codec::encode(&tree).map_err(|e| JsError::new(&format!("{e:#}")))
+}
+
+/// Encode instances (JSON tree) to .rbxm bytes, then base64 encode for transport
+#[wasm_bindgen]
+pub fn encode_to_base64(json: &str) -> Result<String, JsError> {
+    let tree: wire::Tree =
+        serde_json::from_str(json).map_err(|e| JsError::new(&e.to_string()))?;
+    let bytes = codec::encode(&tree).map_err(|e| JsError::new(&format!("{e:#}")))?;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    Ok(b64)
+}
+
+/// Decode base64 string to .rbxm bytes, then deserialize to JSON tree
+#[wasm_bindgen]
+pub fn decode_from_base64(b64: &str) -> Result<String, JsError> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(b64.trim())
+        .map_err(|e| JsError::new(&format!("base64 decode error: {e}")))?;
+    let tree = codec::decode(&bytes).map_err(|e| JsError::new(&format!("{e:#}")))?;
+    serde_json::to_string(&tree).map_err(|e| JsError::new(&e.to_string()))
 }
 
 #[wasm_bindgen]
