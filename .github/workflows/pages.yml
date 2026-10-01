@@ -34,7 +34,9 @@ jobs:
         uses: cargo-bins/cargo-binstall@main
       
       - name: Install Dioxus CLI
-        run: cargo binstall dioxus-cli --no-confirm --force
+        run: |
+          VERSION=$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name=="dioxus") | .version')
+          cargo binstall dioxus-cli --version "$VERSION" --no-confirm --force
 
       - name: Compile Rust project to Static WASM Assets
         run: |
