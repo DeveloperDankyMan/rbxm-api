@@ -29,9 +29,6 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      - name: Check if has WASM
-        run: cargo tree -i wasm-bindgen
-
       - name: Build WASM
         run: wasm-pack build --target web --release --out-dir web/pkg -- --no-default-features
 
