@@ -4,6 +4,10 @@
 <style>
   body { font-family: system-ui, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px; }
   h1 { color: #333; }
+  nav { margin: 20px 0; }
+  nav a { margin-right: 15px; padding: 8px 12px; background: #0366d6; color: white; text-decoration: none; border-radius: 4px; cursor: pointer; }
+  nav a:hover { background: #0256c7; }
+  nav a.active { background: #28a745; }
   .section { margin: 30px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
   input[type="file"], textarea, button, input[type="text"] { font-size: 14px; padding: 8px; }
   textarea, input[type="text"] { font-family: monospace; width: 100%; box-sizing: border-box; }
@@ -13,176 +17,163 @@
   .error { color: #d73a49; }
   .success { color: #28a745; }
   .info { color: #6f42c1; }
+  .hidden { display: none; }
 </style>
 
-<h1>RBXM ⇄ JSON API</h1>
-<p class="info">Connected to Cloudflare Worker</p>
+<h1>RBXM ⇄ JSON</h1>
+<p class="info">All processing in your browser using WASM</p>
+
+<nav>
+  <a href="#/health">Health</a>
+  <a href="#/decode">Decode</a>
+  <a href="#/encode">Encode</a>
+  <a href="#/schema">Schema</a>
+  <a href="#/schemas">Schemas</a>
+</nav>
 
 <div id="app"></div>
 
-<script>
-  // Use Cloudflare Worker URL or local dev
-  const API_BASE = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-    ? "http://localhost:8787"
-    : "https://rbxm-api.your-username.workers.dev";
+<script type="module">
+  import init, {
+    rbxm_to_json,
+    json_to_rbxm,
+    class_schema_json,
+    class_schemas_json
+  } from "./pkg/rbxm_api.js";
 
-  function renderUI() {
+  await init();
+  console.log("WASM initialized!");
+
+  function route() {
+    const hash = window.location.hash.slice(1) || "/health";
+    const route = hash.split("?")[0];
+
     const app = document.getElementById("app");
-    app.innerHTML = `
-      <div class="section">
-        <h3>API URL: <code>${API_BASE}</code></h3>
-        <input type="text" id="apiUrl" value="${API_BASE}" style="margin-bottom: 10px;">
-        <button id="setApi">Set Custom URL</button>
-      </div>
 
-      <div class="section">
-        <h2>Health</h2>
-        <button id="healthBtn">GET /health</button>
-        <pre id="healthOut"></pre>
-      </div>
+    if (route === "/health") {
+      app.innerHTML = `
+        <div class="section">
+          <h2>Health</h2>
+          <button id="healthBtn">Check</button>
+          <pre id="healthOut"></pre>
+        </div>
+      `;
+      document.getElementById("healthBtn").onclick = () => {
+        document.getElementById("healthOut").textContent = "ok";
+        document.getElementById("healthOut").className = "success";
+      };
+    }
 
-      <div class="section">
-        <h2>Decode</h2>
-        <p><b>POST /decode</b> — Convert .rbxm file to JSON</p>
-        <input type="file" id="in" accept=".rbxm">
-        <pre id="out"></pre>
-      </div>
-
-      <div class="section">
-        <h2>Encode</h2>
-        <p><b>POST /encode</b> — Convert JSON to .rbxm file</p>
-        <textarea id="json" rows="10" placeholder='{"instances":[{"id":"1","class":"Model","name":"MyModel","parent":null,"properties":{}}]}'></textarea><br><br>
-        <button id="enc">Download .rbxm</button>
-      </div>
-
-      <div class="section">
-        <h2>Schema</h2>
-        <p><b>GET /schema/:class</b></p>
-        <input type="text" id="classInput" placeholder="Part" style="margin-bottom: 10px;">
-        <button id="schemaBtn">Get Schema</button>
-        <pre id="schemaOut"></pre>
-      </div>
-
-      <div class="section">
-        <h2>Schemas</h2>
-        <p><b>GET /schemas?classes=A,B,C</b></p>
-        <input type="text" id="classesInput" placeholder="Part,Model,Script" style="margin-bottom: 10px;">
-        <button id="schemasBtn">Get Schemas</button>
-        <pre id="schemasOut"></pre>
-      </div>
-    `;
-
-    let apiBase = API_BASE;
-
-    document.getElementById("setApi").onclick = () => {
-      apiBase = document.getElementById("apiUrl").value.trim();
-      console.log("API URL set to:", apiBase);
-    };
-
-    document.getElementById("healthBtn").onclick = async () => {
-      const out = document.getElementById("healthOut");
-      try {
-        const res = await fetch(`${apiBase}/health`);
-        const text = await res.text();
-        out.textContent = text;
-        out.className = "success";
-      } catch (err) {
-        out.textContent = String(err);
-        out.className = "error";
-      }
-    };
-
-    document.getElementById("in").onchange = async (e) => {
-      const out = document.getElementById("out");
-      try {
-        const bytes = await e.target.files[0].arrayBuffer();
-        const b64 = btoa(String.fromCharCode(...new Uint8Array(bytes)));
-        const res = await fetch(`${apiBase}/decode`, {
-          method: "POST",
-          body: b64
-        });
-        const json = await res.json();
-        out.textContent = JSON.stringify(json, null, 2);
-        out.className = "success";
-      } catch (err) {
-        out.textContent = String(err);
-        out.className = "error";
-      }
-    };
-
-    document.getElementById("enc").onclick = async () => {
-      const out = document.getElementById("out");
-      try {
-        const jsonText = document.getElementById("json").value.trim();
-        if (!jsonText) {
-          out.textContent = "Error: JSON field is empty";
+    if (route === "/decode") {
+      app.innerHTML = `
+        <div class="section">
+          <h2>Decode: .rbxm → JSON</h2>
+          <input type="file" id="in" accept=".rbxm">
+          <pre id="out"></pre>
+        </div>
+      `;
+      document.getElementById("in").onchange = async (e) => {
+        const out = document.getElementById("out");
+        try {
+          const bytes = new Uint8Array(await e.target.files[0].arrayBuffer());
+          const json = rbxm_to_json(bytes);
+          out.textContent = JSON.stringify(JSON.parse(json), null, 2);
+          out.className = "success";
+        } catch (err) {
+          out.textContent = String(err);
           out.className = "error";
-          return;
         }
+      };
+    }
 
-        const res = await fetch(`${apiBase}/encode`, {
-          method: "POST",
-          body: jsonText
-        });
+    if (route === "/encode") {
+      app.innerHTML = `
+        <div class="section">
+          <h2>Encode: JSON → .rbxm</h2>
+          <textarea id="json" rows="10" placeholder='{"instances":[{"id":"1","class":"Model","name":"MyModel","parent":null,"properties":{}}]}'></textarea><br><br>
+          <button id="enc">Download .rbxm</button>
+          <pre id="out"></pre>
+        </div>
+      `;
+      document.getElementById("enc").onclick = () => {
+        const out = document.getElementById("out");
+        try {
+          const jsonText = document.getElementById("json").value.trim();
+          if (!jsonText) {
+            out.textContent = "Error: JSON field is empty";
+            out.className = "error";
+            return;
+          }
 
-        if (!res.ok) {
-          const errJson = await res.json();
-          out.textContent = `Error: ${errJson.error}`;
+          const bytes = json_to_rbxm(jsonText);
+          const blob = new Blob([bytes], { type: "application/octet-stream" });
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = "out.rbxm";
+          a.click();
+
+          out.textContent = `✓ Downloaded ${bytes.length} bytes`;
+          out.className = "success";
+        } catch (err) {
+          out.textContent = String(err);
           out.className = "error";
-          return;
         }
+      };
+    }
 
-        const data = await res.json();
-        const bytes = Uint8Array.from(atob(data.data), c => c.charCodeAt(0));
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(new Blob([bytes]));
-        a.download = "out.rbxm";
-        a.click();
+    if (route === "/schema") {
+      app.innerHTML = `
+        <div class="section">
+          <h2>Schema</h2>
+          <input type="text" id="classInput" placeholder="Part" style="margin-bottom: 10px;">
+          <button id="schemaBtn">Get Schema</button>
+          <pre id="schemaOut"></pre>
+        </div>
+      `;
+      document.getElementById("schemaBtn").onclick = () => {
+        const out = document.getElementById("schemaOut");
+        try {
+          const className = document.getElementById("classInput").value.trim() || "Part";
+          const schema = class_schema_json(className);
+          out.textContent = JSON.stringify(JSON.parse(schema), null, 2);
+          out.className = "success";
+        } catch (err) {
+          out.textContent = String(err);
+          out.className = "error";
+        }
+      };
+      document.getElementById("classInput").onkeypress = (e) => {
+        if (e.key === "Enter") document.getElementById("schemaBtn").click();
+      };
+    }
 
-        out.textContent = `✓ Downloaded ${data.bytes} bytes`;
-        out.className = "success";
-      } catch (err) {
-        out.textContent = String(err);
-        out.className = "error";
-      }
-    };
-
-    document.getElementById("schemaBtn").onclick = async () => {
-      const out = document.getElementById("schemaOut");
-      try {
-        const className = document.getElementById("classInput").value.trim() || "Part";
-        const res = await fetch(`${apiBase}/schema/${className}`);
-        const json = await res.json();
-        out.textContent = JSON.stringify(json, null, 2);
-        out.className = "success";
-      } catch (err) {
-        out.textContent = String(err);
-        out.className = "error";
-      }
-    };
-
-    document.getElementById("classInput").onkeypress = (e) => {
-      if (e.key === "Enter") document.getElementById("schemaBtn").click();
-    };
-
-    document.getElementById("schemasBtn").onclick = async () => {
-      const out = document.getElementById("schemasOut");
-      try {
-        const classes = document.getElementById("classesInput").value.trim() || "Part,Model,Script";
-        const res = await fetch(`${apiBase}/schemas?classes=${encodeURIComponent(classes)}`);
-        const json = await res.json();
-        out.textContent = JSON.stringify(json, null, 2);
-        out.className = "success";
-      } catch (err) {
-        out.textContent = String(err);
-        out.className = "error";
-      }
-    };
-
-    document.getElementById("classesInput").onkeypress = (e) => {
-      if (e.key === "Enter") document.getElementById("schemasBtn").click();
-    };
+    if (route === "/schemas") {
+      app.innerHTML = `
+        <div class="section">
+          <h2>Schemas (Batch)</h2>
+          <input type="text" id="classesInput" placeholder="Part,Model,Script" style="margin-bottom: 10px;">
+          <button id="schemasBtn">Get Schemas</button>
+          <pre id="schemasOut"></pre>
+        </div>
+      `;
+      document.getElementById("schemasBtn").onclick = () => {
+        const out = document.getElementById("schemasOut");
+        try {
+          const classes = document.getElementById("classesInput").value.trim() || "Part,Model,Script";
+          const schemas = class_schemas_json(classes);
+          out.textContent = JSON.stringify(JSON.parse(schemas), null, 2);
+          out.className = "success";
+        } catch (err) {
+          out.textContent = String(err);
+          out.className = "error";
+        }
+      };
+      document.getElementById("classesInput").onkeypress = (e) => {
+        if (e.key === "Enter") document.getElementById("schemasBtn").click();
+      };
+    }
   }
 
-  renderUI();
+  route();
+  window.addEventListener("hashchange", route);
 </script>
