@@ -30,14 +30,12 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       # Optimized: Downloads the pre-compiled binary instead of compiling from source
-      - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@main
-      
       - name: Install Dioxus CLI
         run: |
-          VERSION=$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name=="dioxus-core") | .version' | head -n1)
-          if [ -z "$VERSION" ]; then echo "dioxus not found in dependencies"; exit 1; fi
-          cargo binstall dioxus-cli --version "$VERSION" --no-confirm --force
+          VERSION=0.7.10
+          wget -qO- "https://github.com/DioxusLabs/dioxus/releases/download/v${VERSION}/dx-x86_64-unknown-linux-gnu.tar.gz" | tar -xz
+          chmod +x dx
+          sudo mv dx /usr/local/bin/
 
       - name: Compile Rust project to Static WASM Assets
         run: |
