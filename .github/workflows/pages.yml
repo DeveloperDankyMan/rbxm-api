@@ -1,4 +1,4 @@
-name: Deploy Rust WASM to GitHub Pages
+name: Deploy WASM to GitHub Pages
 
 on:
   push:
@@ -15,45 +15,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-wasm:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
 
-      - name: Rust Cache Setup
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
 
-      # Optimized: Downloads the pre-compiled binary instead of compiling from source
-      - name: Install Dioxus CLI
-        run: |
-          VERSION=0.7.10
-          wget -qO- "https://github.com/DioxusLabs/dioxus/releases/download/v${VERSION}/dx-x86_64-unknown-linux-gnu.tar.gz" | tar -xz
-          chmod +x dx
-          sudo mv dx /usr/local/bin/
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      - name: Compile Rust project to Static WASM Assets
-        run: |
-          dx build --release --platform web
+      - name: Build WASM
+        run: wasm-pack build --target web --release --out-dir web/pkg
 
-      # FIXED: Points to the standard, unified Dioxus build distribution directory
-      - name: Upload Pages Artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Remove files Pages doesn't need
+        run: rm -f web/pkg/.gitignore web/pkg/package.json
+
+      - uses: actions/upload-pages-artifact@v3
         with:
-          path: ./dist 
+          path: ./web
 
-  deploy-site:
-    needs: build-wasm
+  deploy:
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy Assets to GitHub Pages Target
-        id: deployment
+      - id: deployment
         uses: actions/deploy-pages@v4
