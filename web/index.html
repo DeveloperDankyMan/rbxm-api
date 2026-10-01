@@ -1,0 +1,35 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>rbxm-api</title>
+<h1>RBXM ⇄ JSON</h1>
+
+<p><b>.rbxm → JSON</b></p>
+<input type="file" id="in" accept=".rbxm">
+<pre id="out"></pre>
+
+<p><b>JSON → .rbxm</b></p>
+<textarea id="json" rows="8" cols="60"></textarea><br>
+<button id="enc">Download .rbxm</button>
+
+<script type="module">
+  import init, { rbxm_to_json, json_to_rbxm } from "./pkg/rbxm_api.js";
+  await init();
+
+  document.getElementById("in").onchange = async (e) => {
+    const bytes = new Uint8Array(await e.target.files[0].arrayBuffer());
+    try {
+      document.getElementById("out").textContent =
+        JSON.stringify(JSON.parse(rbxm_to_json(bytes)), null, 2);
+    } catch (err) { document.getElementById("out").textContent = String(err); }
+  };
+
+  document.getElementById("enc").onclick = () => {
+    try {
+      const bytes = json_to_rbxm(document.getElementById("json").value);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([bytes]));
+      a.download = "out.rbxm";
+      a.click();
+    } catch (err) { alert(err); }
+  };
+</script>
