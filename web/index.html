@@ -46,14 +46,19 @@
 
   function route() {
     const hash = window.location.hash.slice(1) || "/health";
-    const parts = hash.split("/").filter(p => p);
-    const routeName = parts[0];
-    const param = parts[1] || null;
-
+    console.log("Current hash:", hash);
+    
     const app = document.getElementById("app");
 
-    // If URL is /#/schema/Part, handle it directly
-    if (routeName === "schema" && param) {
+    // Parse the hash: /#/route/param1/param2
+    const segments = hash.split("/").filter(s => s.length > 0);
+    const routeName = segments[0];
+    const param = segments.slice(1).join("/"); // handle multi-part params
+
+    console.log("Route:", routeName, "Param:", param);
+
+    // Direct schema response: /#/schema/Part
+    if (routeName === "schema" && param && param.length > 0) {
       try {
         const schemaString = class_schema_json(param);
         const schema = JSON.parse(schemaString);
@@ -74,8 +79,8 @@
       return;
     }
 
-    // If URL is /#/schemas/Part,Model,Script, handle it directly
-    if (routeName === "schemas" && param) {
+    // Direct schemas response: /#/schemas/Part,Model,Script
+    if (routeName === "schemas" && param && param.length > 0) {
       try {
         const schemasString = class_schemas_json(param);
         const schemas = JSON.parse(schemasString);
@@ -97,7 +102,7 @@
     }
 
     // Routes with interactive forms
-    if (routeName === "health") {
+    if (routeName === "health" || routeName === "") {
       app.innerHTML = `
         <div class="section">
           <h2>Health</h2>
@@ -109,6 +114,7 @@
         document.getElementById("healthOut").textContent = "ok";
         document.getElementById("healthOut").className = "success";
       };
+      return;
     }
 
     if (routeName === "decode") {
@@ -137,6 +143,7 @@
           out.className = "error";
         }
       };
+      return;
     }
 
     if (routeName === "encode") {
@@ -176,6 +183,7 @@
           out.className = "error";
         }
       };
+      return;
     }
 
     if (routeName === "schema") {
@@ -197,6 +205,7 @@
       document.getElementById("classInput").onkeypress = (e) => {
         if (e.key === "Enter") document.getElementById("schemaBtn").click();
       };
+      return;
     }
 
     if (routeName === "schemas") {
@@ -218,7 +227,11 @@
       document.getElementById("classesInput").onkeypress = (e) => {
         if (e.key === "Enter") document.getElementById("schemasBtn").click();
       };
+      return;
     }
+
+    // 404
+    app.innerHTML = `<div class="section error"><h2>Route not found</h2></div>`;
   }
 
   route();
