@@ -35,7 +35,8 @@ jobs:
       
       - name: Install Dioxus CLI
         run: |
-          VERSION=$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name=="dioxus") | .version')
+          VERSION=$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name=="dioxus-core") | .version' | head -n1)
+          if [ -z "$VERSION" ]; then echo "dioxus not found in dependencies"; exit 1; fi
           cargo binstall dioxus-cli --version "$VERSION" --no-confirm --force
 
       - name: Compile Rust project to Static WASM Assets
