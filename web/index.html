@@ -15,136 +15,25 @@
   .info { color: #6f42c1; }
 </style>
 
-<h1>RBXM ⇄ JSON</h1>
-<p class="info">This page uses the browser-built WASM API, so it behaves like the same encode/decode/schema endpoints without needing a Rust server.</p>
+<h1>RBXM ⇄ JSON API</h1>
+<p class="info">This page connects to a real backend server with true API routes.</p>
 
 <div id="app"></div>
 
-<script type="module">
-  import init, {
-    rbxm_to_json,
-    json_to_rbxm,
-    class_schema_json,
-    class_schemas_json
-  } from "./pkg/rbxm_api.js";
+<script>
+  // Detect if we're running locally or deployed
+  const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  const apiBase = isLocal ? "http://localhost:3000" : window.location.origin;
 
-  await init();
+  console.log(`API Base: ${apiBase}`);
 
-  const app = document.getElementById("app");
-
-  function route() {
-    const path = window.location.pathname.replace(/\/+$/, "") || "/";
-    const last = path.split("/").filter(Boolean).pop() || "home";
-    const params = new URLSearchParams(window.location.search);
-
-    if (last === "health") {
-      return renderHealth();
-    }
-
-    if (last === "encode") {
-      const json = params.get("data") || "";
-      try {
-        const bytes = json_to_rbxm(json);
-        const preview = `Encoded ${bytes.length} bytes`;
-        return renderResult("/encode", {
-          ok: true,
-          data: bytes,
-          note: preview,
-          raw: JSON.stringify({ bytes: bytes.length, ok: true }, null, 2)
-        });
-      } catch (err) {
-        return renderError("/encode", String(err));
-      }
-    }
-
-    if (last === "decode") {
-      try {
-        const raw = params.get("data") || "";
-        const json = rbxm_to_json(Uint8Array.from(atob(raw), c => c.charCodeAt(0)));
-        return renderResult("/decode", {
-          ok: true,
-          raw: JSON.stringify(JSON.parse(json), null, 2),
-          note: "Decoded from base64 payload"
-        });
-      } catch (err) {
-        return renderError("/decode", String(err));
-      }
-    }
-
-    if (last === "schema") {
-      const className = params.get("class") || "Part";
-      try {
-        const schema = class_schema_json(className);
-        return renderResult(`/schema?class=${className}`, {
-          ok: true,
-          raw: JSON.stringify(JSON.parse(schema), null, 2),
-          note: `Schema for ${className}`
-        });
-      } catch (err) {
-        return renderError("/schema", String(err));
-      }
-    }
-
-    if (last === "schemas") {
-      const classes = params.get("classes") || "Part,Model,Script";
-      try {
-        const schemas = class_schemas_json(classes);
-        return renderResult(`/schemas?classes=${classes}`, {
-          ok: true,
-          raw: JSON.stringify(JSON.parse(schemas), null, 2),
-          note: `Schemas for ${classes}`
-        });
-      } catch (err) {
-        return renderError("/schemas", String(err));
-      }
-    }
-
-    return renderDefaultUI();
-  }
-
-  function renderResult(route, data) {
-    app.innerHTML = `
-      <div class="section">
-        <h2>Route: <code>${route}</code></h2>
-        <p class="success">${data.note}</p>
-        <pre>${data.raw}</pre>
-      </div>
-      <div class="section">
-        <button onclick="window.location.href='/'">Back to tool</button>
-      </div>
-    `;
-  }
-
-  function renderError(route, msg) {
-    app.innerHTML = `
-      <div class="section">
-        <h2>Route: <code>${route}</code></h2>
-        <p class="error">${msg}</p>
-      </div>
-      <div class="section">
-        <button onclick="window.location.href='/'">Back to tool</button>
-      </div>
-    `;
-  }
-
-  function renderHealth() {
-    app.innerHTML = `
-      <div class="section">
-        <h2>Route: <code>/health</code></h2>
-        <pre>ok</pre>
-      </div>
-      <div class="section">
-        <button onclick="window.location.href='/'">Back to tool</button>
-      </div>
-    `;
-  }
-
-  function renderDefaultUI() {
+  function renderUI() {
+    const app = document.getElementById("app");
     app.innerHTML = `
       <div class="section">
         <h2>Health</h2>
         <button id="healthBtn">GET /health</button>
-        <pre id="healthOut">ok</pre>
+        <pre id="healthOut"></pre>
       </div>
 
       <div class="section">
@@ -178,57 +67,117 @@
       </div>
     `;
 
-    document.getElementById("healthBtn").onclick = () => {
-      document.getElementById("healthOut").textContent = "ok";
-    };
-
-    document.getElementById("in").onchange = async (e) => {
-      const out = document.getElementById("out");
+    // Health
+    document.getElementById("healthBtn").onclick = async () => {
+      const out = document.getElementById("healthOut");
       try {
-        const bytes = new Uint8Array(await e.target.files[0].arrayBuffer());
-        const json = rbxm_to_json(bytes);
-        out.textContent = JSON.stringify(JSON.parse(json), null, 2);
+        const res = await fetch(`${apiBase}/health`);
+        const text = await res.text();
+        out.textContent = text;
+        out.className = "success";
       } catch (err) {
         out.textContent = String(err);
+        out.className = "error";
       }
     };
 
-    document.getElementById("enc").onclick = () => {
+    // Decode
+    document.getElementById("in").onchange = async (e) => {
       const out = document.getElementById("out");
       try {
-        const bytes = json_to_rbxm(document.getElementById("json").value.trim());
+        const bytes = await e.target.files[0].arrayBuffer();
+        const b64 = btoa(String.fromCharCode(...new Uint8Array(bytes)));
+        const res = await fetch(`${apiBase}/decode`, {
+          method: "POST",
+          body: b64,
+          headers: { "Content-Type": "text/plain" }
+        });
+        const json = await res.json();
+        out.textContent = JSON.stringify(json, null, 2);
+        out.className = "success";
+      } catch (err) {
+        out.textContent = String(err);
+        out.className = "error";
+      }
+    };
+
+    // Encode
+    document.getElementById("enc").onclick = async () => {
+      const out = document.getElementById("out");
+      try {
+        const jsonText = document.getElementById("json").value.trim();
+        if (!jsonText) {
+          out.textContent = "Error: JSON field is empty";
+          out.className = "error";
+          return;
+        }
+
+        const res = await fetch(`${apiBase}/encode`, {
+          method: "POST",
+          body: jsonText,
+          headers: { "Content-Type": "application/json" }
+        });
+
+        if (!res.ok) {
+          const errJson = await res.json();
+          out.textContent = `Error: ${errJson.error}`;
+          out.className = "error";
+          return;
+        }
+
+        const data = await res.json();
+        const bytes = Uint8Array.from(atob(data.data), c => c.charCodeAt(0));
         const a = document.createElement("a");
         a.href = URL.createObjectURL(new Blob([bytes]));
         a.download = "out.rbxm";
         a.click();
-        out.textContent = `✓ Downloaded ${bytes.length} bytes`;
+
+        out.textContent = `✓ Downloaded ${data.bytes} bytes`;
+        out.className = "success";
       } catch (err) {
         out.textContent = String(err);
+        out.className = "error";
       }
     };
 
-    document.getElementById("schemaBtn").onclick = () => {
+    // Schema
+    document.getElementById("schemaBtn").onclick = async () => {
       const out = document.getElementById("schemaOut");
       try {
         const className = document.getElementById("classInput").value.trim() || "Part";
-        const schema = class_schema_json(className);
-        out.textContent = JSON.stringify(JSON.parse(schema), null, 2);
+        const res = await fetch(`${apiBase}/schema/${className}`);
+        const json = await res.json();
+        out.textContent = JSON.stringify(json, null, 2);
+        out.className = "success";
       } catch (err) {
         out.textContent = String(err);
+        out.className = "error";
       }
     };
 
-    document.getElementById("schemasBtn").onclick = () => {
+    document.getElementById("classInput").onkeypress = (e) => {
+      if (e.key === "Enter") document.getElementById("schemaBtn").click();
+    };
+
+    // Schemas
+    document.getElementById("schemasBtn").onclick = async () => {
       const out = document.getElementById("schemasOut");
       try {
         const classes = document.getElementById("classesInput").value.trim() || "Part,Model,Script";
-        const schemas = class_schemas_json(classes);
-        out.textContent = JSON.stringify(JSON.parse(schemas), null, 2);
+        const res = await fetch(`${apiBase}/schemas?classes=${encodeURIComponent(classes)}`);
+        const json = await res.json();
+        out.textContent = JSON.stringify(json, null, 2);
+        out.className = "success";
       } catch (err) {
         out.textContent = String(err);
+        out.className = "error";
       }
+    };
+
+    document.getElementById("classesInput").onkeypress = (e) => {
+      if (e.key === "Enter") document.getElementById("schemasBtn").click();
     };
   }
 
-  route();
+  renderUI();
 </script>
