@@ -19,6 +19,24 @@
   .info { color: #6f42c1; }
   .hidden { display: none; }
 </style>
+<head>
+  <!-- Start Single Page Apps for GitHub Pages Route Handler -->
+  <script type="text/javascript">
+    (function(l) {
+      if (l.search[1] === 'p' ) {
+        var decoded = l.search.slice(1).split('&').map(function(s) { 
+          return s.replace(/~and~/g, '&') 
+        }).join('?');
+        var path = decoded.split('=')[1] || '';
+        window.history.replaceState(null, null,
+          l.pathname.slice(0, -1) + (path ? '/' + path : '') + l.hash
+        );
+      }
+    }(window.location));
+  </script>
+  <!-- End Single Page Apps for GitHub Pages Route Handler -->
+</head>
+
 
 <h1>RBXM ⇄ JSON</h1>
 <p class="info">All processing in your browser using WASM</p>
@@ -32,23 +50,6 @@
 </nav>
 
 <div id="app"></div>
-<script type="text/javascript">
-  // Single Page Apps for GitHub Pages
-  // MIT License
-  // https://github.com
-  (function(l) {
-    if (l.search[1] === '/' ) {
-      var decoded = l.search.slice(1).split('&').map(function(s) { 
-        return s.replace(/~and~/g, '&') 
-      }).join('?');
-      window.history.replaceState(null, null,
-          l.pathname.slice(0, -1) + decoded + l.hash
-      );
-    }
-  }(window.location));
-</script>
-
-
 <script type="module">
   import init, {
     rbxm_to_json,
