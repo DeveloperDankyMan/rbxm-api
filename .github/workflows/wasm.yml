@@ -47,5 +47,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: rbxm-wasm
-          path: pkg/
+          path: wasm/pkg/
           if-no-files-found: error
