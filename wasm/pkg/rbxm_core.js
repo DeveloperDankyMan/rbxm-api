@@ -27,6 +27,32 @@ export function decode(rbxm_bytes) {
 }
 
 /**
+ * Same as `decode`, but takes a base64 string instead of raw bytes.
+ * @param {string} rbxm_b64
+ * @returns {string}
+ */
+export function decodeB64(rbxm_b64) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(rbxm_b64, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.decodeB64(ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
  * JSON tree (same shape POST /encode expects) -> raw .rbxm bytes.
  * @param {string} tree_json
  * @returns {Uint8Array}
@@ -41,6 +67,34 @@ export function encode(tree_json) {
     var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v2;
+}
+
+/**
+ * Same as `encode`, but returns a base64 string instead of raw bytes — matching the
+ * server's `?b64=1` mode. Useful when the bytes need to pass through something
+ * text-only (JSON, a text field, copy-paste) rather than staying binary.
+ * @param {string} tree_json
+ * @returns {string}
+ */
+export function encodeB64(tree_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(tree_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.encodeB64(ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
 }
 
 /**

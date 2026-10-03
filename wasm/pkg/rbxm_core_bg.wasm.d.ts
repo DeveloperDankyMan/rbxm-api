@@ -2,7 +2,9 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const decode: (a: number, b: number) => [number, number, number, number];
+export const decodeB64: (a: number, b: number) => [number, number, number, number];
 export const encode: (a: number, b: number) => [number, number, number, number];
+export const encodeB64: (a: number, b: number) => [number, number, number, number];
 export const schema: (a: number, b: number) => [number, number, number, number];
 export const start: () => void;
 export const rust_zstd_wasm_shim_calloc: (a: number, b: number) => number;

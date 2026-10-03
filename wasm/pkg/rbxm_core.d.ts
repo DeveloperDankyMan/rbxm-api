@@ -7,9 +7,21 @@
 export function decode(rbxm_bytes: Uint8Array): string;
 
 /**
+ * Same as `decode`, but takes a base64 string instead of raw bytes.
+ */
+export function decodeB64(rbxm_b64: string): string;
+
+/**
  * JSON tree (same shape POST /encode expects) -> raw .rbxm bytes.
  */
 export function encode(tree_json: string): Uint8Array;
+
+/**
+ * Same as `encode`, but returns a base64 string instead of raw bytes — matching the
+ * server's `?b64=1` mode. Useful when the bytes need to pass through something
+ * text-only (JSON, a text field, copy-paste) rather than staying binary.
+ */
+export function encodeB64(tree_json: string): string;
 
 /**
  * Same data GET /schema/:class returns, as a JSON string.
@@ -26,7 +38,9 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly decode: (a: number, b: number) => [number, number, number, number];
+    readonly decodeB64: (a: number, b: number) => [number, number, number, number];
     readonly encode: (a: number, b: number) => [number, number, number, number];
+    readonly encodeB64: (a: number, b: number) => [number, number, number, number];
     readonly schema: (a: number, b: number) => [number, number, number, number];
     readonly start: () => void;
     readonly rust_zstd_wasm_shim_calloc: (a: number, b: number) => number;
