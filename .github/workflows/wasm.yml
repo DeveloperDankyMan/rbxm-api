@@ -31,9 +31,18 @@ jobs:
       # --target web: output is a plain ES module (rbxm_wasm.js + rbxm_wasm_bg.wasm),
       # loadable with <script type="module"> or any modern JS bundler. Change to
       # --target nodejs if you specifically need `require()` instead of `import`.
+      # - name: Build
+      #   working-directory: wasm
+      #   run: wasm-pack build --target web --release --out-dir ../pkg
       - name: Build
         working-directory: wasm
-        run: wasm-pack build --target web --release --out-dir ../pkg
+        run: |
+          wasm-pack build --target web --release --out-dir ../pkg
+          if [ ! -d ../pkg ]; then
+            echo "Build output directory not found!"
+            ls -la
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
