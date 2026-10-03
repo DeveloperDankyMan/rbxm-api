@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - "wasm/**"
       - "src/**"
       - "Cargo.toml"
       - "Cargo.lock"
