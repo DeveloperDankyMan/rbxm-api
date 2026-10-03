@@ -1,10 +1,34 @@
 /* tslint:disable */
 /* eslint-disable */
 
+/**
+ * Raw .rbxm bytes -> JSON tree string (same shape POST /decode returns).
+ */
+export function decode(rbxm_bytes: Uint8Array): string;
+
+/**
+ * JSON tree (same shape POST /encode expects) -> raw .rbxm bytes.
+ */
+export function encode(tree_json: string): Uint8Array;
+
+/**
+ * Same data GET /schema/:class returns, as a JSON string.
+ */
+export function schema(class_name: string): string;
+
+/**
+ * Call once, right after `init()` in JS, for readable panic messages in the browser console.
+ */
+export function start(): void;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly decode: (a: number, b: number) => [number, number, number, number];
+    readonly encode: (a: number, b: number) => [number, number, number, number];
+    readonly schema: (a: number, b: number) => [number, number, number, number];
+    readonly start: () => void;
     readonly rust_zstd_wasm_shim_calloc: (a: number, b: number) => number;
     readonly rust_zstd_wasm_shim_free: (a: number) => void;
     readonly rust_zstd_wasm_shim_malloc: (a: number) => number;
@@ -13,7 +37,13 @@ export interface InitOutput {
     readonly rust_zstd_wasm_shim_memmove: (a: number, b: number, c: number) => number;
     readonly rust_zstd_wasm_shim_memset: (a: number, b: number, c: number) => number;
     readonly rust_zstd_wasm_shim_qsort: (a: number, b: number, c: number, d: number) => void;
+    readonly __wbindgen_exn_store: (a: number) => void;
+    readonly __externref_table_alloc: () => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
+    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
+    readonly __wbindgen_malloc: (a: number, b: number) => number;
+    readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+    readonly __externref_table_dealloc: (a: number) => void;
     readonly __wbindgen_start: () => void;
 }
 
