@@ -11,6 +11,10 @@ on:
       - ".github/workflows/wasm.yml"
   workflow_dispatch:
 
+# Lets this workflow push its own commit back to the repo.
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -49,3 +53,19 @@ jobs:
           name: rbxm-wasm
           path: wasm/pkg/
           if-no-files-found: error
+
+      # ALSO commit the built files into the repo itself, so wasm/pkg/ in the Code tab
+      # always matches the latest build. Safe from triggering itself in a loop: this
+      # workflow's `paths:` filter only watches src/**, Cargo.toml, Cargo.lock and this
+      # file — none of which this commit touches.
+      - name: Commit built wasm output
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f wasm/pkg
+          if git diff --cached --quiet; then
+            echo "wasm/pkg unchanged, nothing to commit"
+          else
+            git commit -m "chore: update wasm/pkg [skip ci]"
+            git push
+          fi
