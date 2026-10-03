@@ -1,0 +1,15 @@
+{
+  "name": "rbxm-api",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "rbxm_core_bg.wasm",
+    "rbxm_core.js",
+    "rbxm_core.d.ts"
+  ],
+  "main": "rbxm_core.js",
+  "types": "rbxm_core.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
