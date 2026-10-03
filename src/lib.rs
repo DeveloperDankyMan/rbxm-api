@@ -9,6 +9,7 @@ pub mod convert;
 pub mod schema;
 pub mod wire;
 
+use base64::Engine;
 use wasm_bindgen::prelude::*;
 use wire::Tree;
 
@@ -35,6 +36,24 @@ pub fn encode(tree_json: &str) -> Result<Vec<u8>, JsValue> {
 pub fn decode(rbxm_bytes: &[u8]) -> Result<String, JsValue> {
     let tree = codec::decode(rbxm_bytes).map_err(js_err)?;
     serde_json::to_string(&tree).map_err(js_err)
+}
+
+/// Same as `encode`, but returns a base64 string instead of raw bytes — matching the
+/// server's `?b64=1` mode. Useful when the bytes need to pass through something
+/// text-only (JSON, a text field, copy-paste) rather than staying binary.
+#[wasm_bindgen(js_name = encodeB64)]
+pub fn encode_b64(tree_json: &str) -> Result<String, JsValue> {
+    let bytes = encode(tree_json)?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
+}
+ 
+/// Same as `decode`, but takes a base64 string instead of raw bytes.
+#[wasm_bindgen(js_name = decodeB64)]
+pub fn decode_b64(rbxm_b64: &str) -> Result<String, JsValue> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(rbxm_b64.trim())
+        .map_err(js_err)?;
+    decode(&bytes)
 }
 
 /// Same data GET /schema/:class returns, as a JSON string.
