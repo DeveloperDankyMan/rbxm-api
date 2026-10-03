@@ -1,7 +1,4 @@
-mod codec;
-mod convert;
-mod schema;
-mod wire;
+use rbxm_core::{codec, schema, wire};
 
 use std::{net::SocketAddr, sync::Arc};
 
