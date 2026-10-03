@@ -1,0 +1,1 @@
+Basically since most (maybe) can't run the rust program there will be extra files that will help with that such as js w/ wasm etc. I am sure that wasm is open to every other program maybe.
