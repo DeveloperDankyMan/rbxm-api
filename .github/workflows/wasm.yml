@@ -1,0 +1,42 @@
+name: build wasm
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "wasm/**"
+      - "src/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/wasm.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "wasm -> target"
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      # --target web: output is a plain ES module (rbxm_wasm.js + rbxm_wasm_bg.wasm),
+      # loadable with <script type="module"> or any modern JS bundler. Change to
+      # --target nodejs if you specifically need `require()` instead of `import`.
+      - name: Build
+        working-directory: wasm
+        run: wasm-pack build --target web --release --out-dir ../pkg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rbxm-wasm
+          path: pkg/
+          if-no-files-found: error
