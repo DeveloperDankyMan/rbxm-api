@@ -1,7 +1,7 @@
 /* @ts-self-types="./rbxm_core.d.ts" */
 
 /**
- * Raw .rbxm bytes -> JSON tree string (same shape POST /decode returns).
+ * Raw .rbxm bytes (Uint8Array) -> JSON tree string (same shape POST /decode returns).
  * @param {Uint8Array} rbxm_bytes
  * @returns {string}
  */
@@ -53,7 +53,8 @@ export function decodeB64(rbxm_b64) {
 }
 
 /**
- * JSON tree (same shape POST /encode expects) -> raw .rbxm bytes.
+ * JSON tree (same shape POST /encode expects) -> raw .rbxm bytes (Uint8Array in JS).
+ * Prefer this over encodeB64 — raw bytes are smaller and need no extra decoding step.
  * @param {string} tree_json
  * @returns {Uint8Array}
  */
@@ -109,6 +110,34 @@ export function schema(class_name) {
         const ptr0 = passStringToWasm0(class_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.schema(ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Same data GET /schemas?classes=A,B,C returns: a comma-separated list of class names in,
+ * `{"schemas": [...]}` out as a JSON string. Classes rbx_reflection_database doesn't
+ * recognize are silently skipped, same as the server route.
+ * @param {string} class_names
+ * @returns {string}
+ */
+export function schemas(class_names) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(class_names, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.schemas(ptr0, len0);
         var ptr2 = ret[0];
         var len2 = ret[1];
         if (ret[3]) {

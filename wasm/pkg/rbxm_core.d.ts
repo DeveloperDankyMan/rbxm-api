@@ -2,7 +2,7 @@
 /* eslint-disable */
 
 /**
- * Raw .rbxm bytes -> JSON tree string (same shape POST /decode returns).
+ * Raw .rbxm bytes (Uint8Array) -> JSON tree string (same shape POST /decode returns).
  */
 export function decode(rbxm_bytes: Uint8Array): string;
 
@@ -12,7 +12,8 @@ export function decode(rbxm_bytes: Uint8Array): string;
 export function decodeB64(rbxm_b64: string): string;
 
 /**
- * JSON tree (same shape POST /encode expects) -> raw .rbxm bytes.
+ * JSON tree (same shape POST /encode expects) -> raw .rbxm bytes (Uint8Array in JS).
+ * Prefer this over encodeB64 — raw bytes are smaller and need no extra decoding step.
  */
 export function encode(tree_json: string): Uint8Array;
 
@@ -29,6 +30,13 @@ export function encodeB64(tree_json: string): string;
 export function schema(class_name: string): string;
 
 /**
+ * Same data GET /schemas?classes=A,B,C returns: a comma-separated list of class names in,
+ * `{"schemas": [...]}` out as a JSON string. Classes rbx_reflection_database doesn't
+ * recognize are silently skipped, same as the server route.
+ */
+export function schemas(class_names: string): string;
+
+/**
  * Call once, right after `init()` in JS, for readable panic messages in the browser console.
  */
 export function start(): void;
@@ -42,6 +50,7 @@ export interface InitOutput {
     readonly encode: (a: number, b: number) => [number, number, number, number];
     readonly encodeB64: (a: number, b: number) => [number, number, number, number];
     readonly schema: (a: number, b: number) => [number, number, number, number];
+    readonly schemas: (a: number, b: number) => [number, number, number, number];
     readonly start: () => void;
     readonly rust_zstd_wasm_shim_calloc: (a: number, b: number) => number;
     readonly rust_zstd_wasm_shim_free: (a: number) => void;
