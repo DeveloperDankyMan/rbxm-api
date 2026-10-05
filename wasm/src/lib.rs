@@ -43,3 +43,17 @@ pub fn schema(class_name: &str) -> Result<String, JsValue> {
         .ok_or_else(|| JsValue::from_str(&format!("unknown class {class_name}")))?;
     serde_json::to_string(&s).map_err(js_err)
 }
+
+/// Same data GET /schemas?classes=A,B,C returns: a comma-separated list of class names in,
+/// `{"schemas": [...]}` out as a JSON string. Classes rbx_reflection_database doesn't
+/// recognize are silently skipped, same as the server route.
+#[wasm_bindgen]
+pub fn schemas(class_names: &str) -> Result<String, JsValue> {
+    let out: Vec<_> = class_names
+        .split(',')
+        .map(str::trim)
+        .filter(|c| !c.is_empty())
+        .filter_map(schema::class_schema)
+        .collect();
+    serde_json::to_string(&serde_json::json!({ "schemas": out })).map_err(js_err)
+}
